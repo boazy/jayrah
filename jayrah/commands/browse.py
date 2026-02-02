@@ -69,6 +69,12 @@ def browse(
     issues = jayrah_obj.issues_client.list_issues(jql, order_by=order_by)
 
     if not issues:
+        if jayrah_obj.jira.request_handler.last_cache_hit:
+            click.secho(
+                "No issues found from cached response; try --no-cache or 'jayrah cache --clear'",
+                fg="yellow",
+                err=True,
+            )
         boards.show_no_issues_message(search_terms, use_or, filters)
         return
 

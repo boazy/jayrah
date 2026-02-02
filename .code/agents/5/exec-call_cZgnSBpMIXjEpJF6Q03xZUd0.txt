@@ -1,0 +1,1606 @@
+jayrah/create/defaults.py:1:"""Default values and helpers for Jayrah issue creation."""
+jayrah/create/defaults.py:7:type: {issuetype}
+jayrah/create/defaults.py:23:{allissuetypes}
+jayrah/create/defaults.py:40:Please provide a clear and concise description of the issue or feature.
+jayrah/create/template_loader.py:1:"""Template loading utilities for Jayrah issue creation."""
+jayrah/create/template_loader.py:7:    """Load issue template from config (by type, string or file), user templates dir, or repository."""
+jayrah/create/template_loader.py:35:    # Look for templates in .github/ISSUE_TEMPLATE/ or .jira/templates/
+jayrah/create/template_loader.py:38:        ".jira/templates/",
+jayrah/create/create.py:11:import jira2markdown
+jayrah/create/create.py:14:from ..utils import issue_view, markdown_to_jira
+jayrah/create/create.py:75:def create_edit_issue(
+jayrah/create/create.py:78:    issuetype=None,
+jayrah/create/create.py:87:    """Open the editor, validate metadata, and return the finalized issue payload."""
+jayrah/create/create.py:89:    resources = _collect_issue_resources(jayrah_obj, issuetype=issuetype)
+jayrah/create/create.py:93:        "issuetype": issuetype or _default_issue_type(resources),
+jayrah/create/create.py:113:        jayrah_obj, template, values["issuetype"], resources, values["content"]
+jayrah/create/create.py:119:    if values["issuetype"].lower() == "epic" and not values.get("epic_name"):
+jayrah/create/create.py:123:        editor_payload = _build_issue_template(values, resources)
+jayrah/create/create.py:139:            if values["issuetype"].lower() == "epic" and not values.get("epic_name"):
+jayrah/create/create.py:155:        errors = _validate_issue_values(values, resources)
+jayrah/create/create.py:157:            click.secho("Found issues with the template values:", fg="red")
+jayrah/create/create.py:174:        "issuetype": values["issuetype"],
+jayrah/create/create.py:190:def preview_issue(
+jayrah/create/create.py:191:    issuetype, title, content, priority, assignee, labels, components, extra_fields=None
+jayrah/create/create.py:193:    """Show issue preview before creation."""
+jayrah/create/create.py:199:        ("Type", issuetype),
+jayrah/create/create.py:221:    markdown_description = jira2markdown.convert(content)
+jayrah/create/create.py:222:    markdown_description = issue_view.wrap_markdown(markdown_description)
+jayrah/create/create.py:223:    issue_view.format_with_rich(markdown_description)
+jayrah/create/create.py:228:    """Interactive issue creation with optional dry-run and retry support."""
+jayrah/create/create.py:235:            "issuetype",
+jayrah/create/create.py:245:        preview_issue(
+jayrah/create/create.py:246:            issuetype=current["issuetype"],
+jayrah/create/create.py:261:        if not click.confirm("Create issue?", default=True):
+jayrah/create/create.py:263:                current = create_edit_issue(
+jayrah/create/create.py:266:                    current["issuetype"],
+jayrah/create/create.py:285:        issue_key = create_issue(
+jayrah/create/create.py:287:            current["issuetype"],
+jayrah/create/create.py:297:        if issue_key:
+jayrah/create/create.py:298:            return issue_key
+jayrah/create/create.py:302:            current = create_edit_issue(
+jayrah/create/create.py:305:                current["issuetype"],
+jayrah/create/create.py:315:        if click.confirm("Save this issue as a draft file?", default=True):
+jayrah/create/create.py:316:            draft_path = save_issue_draft(jayrah_obj, current)
+jayrah/create/create.py:321:def create_issue(
+jayrah/create/create.py:323:    issuetype,
+jayrah/create/create.py:332:    """Create the issue with the given parameters."""
+jayrah/create/create.py:336:            description = markdown_to_jira.convert(description)
+jayrah/create/create.py:338:            description = markdown_to_jira.convert_v3(description)
+jayrah/create/create.py:360:        result = jayrah_obj.jira.create_issue(
+jayrah/create/create.py:361:            issuetype=issuetype,
+jayrah/create/create.py:371:        issue_key = result.get("key")
+jayrah/create/create.py:372:        if issue_key:
+jayrah/create/create.py:373:            click.secho(f"✅ Issue {issue_key} created successfully!", fg="green")
+jayrah/create/create.py:375:                f"URL: {utils.make_full_url(issue_key, jayrah_obj.config.get('jira_server'))}"
+jayrah/create/create.py:377:            return issue_key
+jayrah/create/create.py:379:        click.secho(f"❌ Error creating issue: {str(e)}", fg="red")
+jayrah/create/create.py:392:    cached_id = jayrah_obj.jira.cache.get("internal://epic_name_field_id")
+jayrah/create/create.py:398:        fields = jayrah_obj.jira.get_fields()
+jayrah/create/create.py:403:                    jayrah_obj.jira.cache.set("internal://epic_name_field_id", field_id)
+jayrah/create/create.py:411:def _collect_issue_resources(jayrah_obj, issuetype=None):
+jayrah/create/create.py:412:    """Gather available issue metadata from Jira and config."""
+jayrah/create/create.py:414:    project_key = jayrah_obj.config.get("jira_project")
+jayrah/create/create.py:416:    # Fetch issue types once BEFORE parallel requests to enable reuse
+jayrah/create/create.py:417:    issuetypes = jayrah_obj.jira.get_issue_types(use_cache=True)
+jayrah/create/create.py:420:        # Pass cached issue types to avoid duplicate API calls
+jayrah/create/create.py:422:            jayrah_obj.jira.get_project_priorities,
+jayrah/create/create.py:423:            issuetype=issuetype,
+jayrah/create/create.py:424:            issue_types_cache=issuetypes,
+jayrah/create/create.py:426:        future_labels = executor.submit(jayrah_obj.jira.get_labels)
+jayrah/create/create.py:427:        future_components = executor.submit(jayrah_obj.jira.get_components)
+jayrah/create/create.py:429:            executor.submit(jayrah_obj.jira.get_createmeta, project_key, issuetype)
+jayrah/create/create.py:430:            if project_key and issuetype
+jayrah/create/create.py:473:                for it in project.get("issuetypes", []):
+jayrah/create/create.py:474:                    if it["name"] == issuetype:
+jayrah/create/create.py:481:                                    "issuetype",
+jayrah/create/create.py:503:        "issuetypes": issuetypes,
+jayrah/create/create.py:511:def _issue_helper_comments(resources):
+jayrah/create/create.py:524:def _build_issue_template(values, resources):
+jayrah/create/create.py:525:    """Render the issue template with the current values and reference data."""
+jayrah/create/create.py:527:    issuetype_names = list(resources["issuetypes"].keys())
+jayrah/create/create.py:528:    issuetype_value = values.get("issuetype") or _default_issue_type(resources)
+jayrah/create/create.py:533:    allissuetypes_f = [f"- {name.strip()}" for name in issuetype_names]
+jayrah/create/create.py:541:        "type": issuetype_value,
+jayrah/create/create.py:544:    if issuetype_value.lower() == "epic":
+jayrah/create/create.py:579:    template += f"{_issue_helper_comments(resources)}\n\n"
+jayrah/create/create.py:582:    template += "### Issue Types\n\n" + "\n".join(allissuetypes_f) + "\n\n"
+jayrah/create/create.py:595:        "issuetype": current_values.get("issuetype", ""),
+jayrah/create/create.py:620:                    "type": "issuetype",
+jayrah/create/create.py:642:def _validate_issue_values(values, resources):
+jayrah/create/create.py:643:    """Return a list of validation errors for the supplied issue values."""
+jayrah/create/create.py:646:    issuetypes = resources["issuetypes"]
+jayrah/create/create.py:650:    issuetype = values.get("issuetype", "").strip()
+jayrah/create/create.py:651:    if not issuetype:
+jayrah/create/create.py:653:    elif issuetype not in issuetypes:
+jayrah/create/create.py:654:        available_types = list(issuetypes.keys())
+jayrah/create/create.py:657:            f"Issue type '{issuetype}' is not available. Available types: {available_list}"
+jayrah/create/create.py:691:    if issuetype.lower() == "epic":
+jayrah/create/create.py:701:            errors.append("Epic Name is required for Epic issues.")
+jayrah/create/create.py:725:def _default_issue_type(resources):
+jayrah/create/create.py:726:    """Return the first available issue type name."""
+jayrah/create/create.py:728:    issuetypes = list(resources.get("issuetypes", {}).keys())
+jayrah/create/create.py:729:    return issuetypes[0] if issuetypes else ""
+jayrah/create/create.py:745:    jayrah_obj, template, issuetype, resources, current_content
+jayrah/create/create.py:753:    if not selected_template and issuetype:
+jayrah/create/create.py:754:        selected_template = issuetype.lower()
+jayrah/create/create.py:761:    fallback_type = _default_issue_type(resources)
+jayrah/create/create.py:762:    if fallback_type and fallback_type != issuetype:
+jayrah/create/create.py:770:def save_issue_draft(jayrah_obj, values):
+jayrah/create/create.py:771:    """Persist the current issue payload to a timestamped markdown file."""
+jayrah/create/create.py:773:    resources = _collect_issue_resources(jayrah_obj, issuetype=values.get("issuetype"))
+jayrah/create/create.py:774:    template_text = _build_issue_template(values, resources)
+jayrah/create/create.py:777:    draft_path = Path.cwd() / f"jayrah_issue_draft_{timestamp}.md"
+jayrah/commands/mcli.py:7:from jayrah.utils import issue_view
+jayrah/commands/mcli.py:22:@click.option("--query", "-q", "jql_query", help="JQL query to use directly")
+jayrah/commands/mcli.py:41:    jql_query,
+jayrah/commands/mcli.py:60:    if jql_query:
+jayrah/commands/mcli.py:61:        jql = jql_query
+jayrah/commands/mcli.py:68:                "You must specify a board or a JQL query via -q/--query", fg="red"
+jayrah/commands/mcli.py:71:        jql, order_by = boards.check(board, jayrah_obj.config)
+jayrah/commands/mcli.py:72:        if not jql or not order_by:
+jayrah/commands/mcli.py:77:        jayrah_obj.issues_client,
+jayrah/commands/mcli.py:86:        context_content = generator.generate_board_context(board, jql, order_by)
+jayrah/commands/mcli.py:107:        issue = jayrah_obj.jira.get_issue(ticket_number, fields=["*all"])
+jayrah/commands/mcli.py:111:            click.echo(json.dumps(issue.raw, indent=2))
+jayrah/commands/mcli.py:113:            header, body = issue_view.build_issue(issue, jayrah_obj.config, 5)
+jayrah/commands/mcli.py:128:        base_url = jayrah_obj.config.get("jira_server")
+jayrah/commands/mcli.py:146:        # Get available transitions for the issue
+jayrah/commands/mcli.py:147:        transitions_data = jayrah_obj.jira.get_transitions(ticket_number)
+jayrah/commands/mcli.py:159:            # Get current issue status
+jayrah/commands/mcli.py:160:            issue = jayrah_obj.jira.get_issue(ticket_number, fields=["status"])
+jayrah/commands/mcli.py:161:            current_status = issue.get("fields", {}).get("status", {}).get("name", "")
+jayrah/commands/mcli.py:201:            # Get current issue status for error case too
+jayrah/commands/mcli.py:202:            issue = jayrah_obj.jira.get_issue(ticket_number, fields=["status"])
+jayrah/commands/mcli.py:203:            current_status = issue.get("fields", {}).get("status", {}).get("name", "")
+jayrah/commands/mcli.py:217:        jayrah_obj.jira.transition_issue(ticket_number, target_transition_id)
+jayrah/commands/mcli.py:251:        # Get issue with relevant fields for status display
+jayrah/commands/mcli.py:257:            "issuetype",
+jayrah/commands/mcli.py:275:        issue = jayrah_obj.jira.get_issue(ticket_number, fields=base_fields)
+jayrah/commands/mcli.py:280:            click.echo(json.dumps(issue, indent=2))
+jayrah/commands/mcli.py:283:            fields = issue.get("fields", {})
+jayrah/commands/mcli.py:286:            key = issue.get("key", "Unknown")
+jayrah/commands/mcli.py:290:            issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+jayrah/commands/mcli.py:303:            click.echo(f"Type: {issue_type}")
+jayrah/commands/mcli.py:379:                # Handle different description formats (similar to issue_view.py)
+jayrah/commands/mcli.py:397:                    import jira2markdown
+jayrah/commands/mcli.py:399:                    markdown_description = jira2markdown.convert(description_text)
+jayrah/commands/mcli.py:400:                    markdown_description = issue_view.wrap_markdown(
+jayrah/commands/mcli.py:421:    """List all issues for a specific board in CSV format."""
+jayrah/commands/mcli.py:437:        jql = target_board.get("jql")
+jayrah/commands/mcli.py:440:        if not jql:
+jayrah/commands/mcli.py:441:            click.secho(f"Board '{board_name}' has no JQL query defined.", fg="red")
+jayrah/commands/mcli.py:445:            jql = f"{jql} ORDER BY {order_by}"
+jayrah/commands/mcli.py:447:        issues = jayrah_obj.issues_client.list_issues(jql)
+jayrah/commands/mcli.py:450:        writer.writerow(["key", "issuetype", "status", "assignee", "summary"])
+jayrah/commands/mcli.py:452:        for issue in issues:
+jayrah/commands/mcli.py:453:            fields = issue.get("fields", {})
+jayrah/commands/mcli.py:461:            issuetype = fields.get("issuetype", {}).get("name", "No Type")
+jayrah/commands/mcli.py:462:            key = issue.get("key")
+jayrah/commands/mcli.py:463:            writer.writerow([key, issuetype, status, assignee, summary])
+jayrah/commands/mcli.py:466:        click.secho(f"Error fetching issues for board {board_name}: {e}", fg="red")
+jayrah/commands/mcli.py:493:        @click.argument("issue_key")
+jayrah/commands/mcli.py:496:        def callback(jayrah_obj, issue_key, value):
+jayrah/commands/mcli.py:497:            """Custom command to update a custom field for an issue."""
+jayrah/commands/mcli.py:501:            issue_key = os.path.basename(issue_key)
+jayrah/commands/mcli.py:529:            # Update the issue
+jayrah/commands/mcli.py:531:                jayrah_obj.jira.update_issue(issue_key, {field_id: value})
+jayrah/commands/mcli.py:533:                    f"Custom field '{field_name}' ({field_id}) updated with {value} for {issue_key}",
+jayrah/commands/mcli.py:538:                    f"Error updating custom field for {issue_key}: {e}", fg="red"
+jayrah/commands/common.py:18:    "--jira-server",
+jayrah/commands/common.py:23:    "--jira-user",
+jayrah/commands/common.py:28:    "--jira-component",
+jayrah/commands/common.py:33:    "--jira-password",
+jayrah/commands/common.py:51:    jira_user,
+jayrah/commands/common.py:52:    jira_password,
+jayrah/commands/common.py:53:    jira_component,
+jayrah/commands/common.py:54:    jira_server,
+jayrah/commands/common.py:62:        "jira_server": jira_server,
+jayrah/commands/common.py:63:        "jira_user": jira_user,
+jayrah/commands/common.py:64:        "jira_password": jira_password,
+jayrah/commands/common.py:65:        "jira_component": jira_component,
+jayrah/commands/completions.py:8:from ..api import jira_client as jirahttp
+jayrah/commands/completions.py:12:def setup_jira_http(ctx):
+jayrah/commands/completions.py:21:    return jirahttp.JiraHTTP(cfg, api_version=api_version, auth_method=auth_method)
+jayrah/commands/completions.py:45:    name = "jira_object"
+jayrah/commands/completions.py:55:            jiracnx = setup_jira_http(ctx)
+jayrah/commands/completions.py:56:            fetch_method = getattr(jiracnx, self.fetch_method_name)
+jayrah/commands/completions.py:59:            # (like get_issue_types)
+jayrah/commands/completions.py:66:            # Handle dict response (like from get_issue_types)
+jayrah/commands/completions.py:96:    """A click parameter type for JIRA issue types."""
+jayrah/commands/completions.py:98:    name = "issuetype"
+jayrah/commands/completions.py:101:        super().__init__("get_issue_types")
+jayrah/commands/cache.py:8:from ..api import jira_client as jirahttp
+jayrah/commands/cache.py:32:    jira = jirahttp.JiraHTTP(config, api_version=api_version, auth_method=auth_method)
+jayrah/commands/cache.py:35:        jira.cache.clear()
+jayrah/commands/cache.py:40:        pruned_count = jira.cache.prune(max_age)
+jayrah/commands/cache.py:45:        cache_stats = jira.get_cache_stats()
+jayrah/api/jira_client.py:34:        server = config.get("jira_server")
+jayrah/api/jira_client.py:36:            raise click.ClickException("jira_server not configured")
+jayrah/api/jira_client.py:70:                f"auth_method={auth_method}, project={config.get('jira_component')}, "
+jayrah/api/jira_client.py:102:    def search_issues(
+jayrah/api/jira_client.py:104:        jql: str,
+jayrah/api/jira_client.py:110:        """Search for issues using JQL."""
+jayrah/api/jira_client.py:111:        params = {"jql": jql, "startAt": start_at, "maxResults": max_results}
+jayrah/api/jira_client.py:117:                f"Searching issues with JQL: '{click.style(jql, fg='cyan')}' "
+jayrah/api/jira_client.py:122:        label = "✨ Fetching Jira issues"
+jayrah/api/jira_client.py:127:            "GET", "search", params=params, label=label, use_cache=use_cache
+jayrah/api/jira_client.py:134:    def create_issue(
+jayrah/api/jira_client.py:136:        issuetype: str,
+jayrah/api/jira_client.py:145:        """Create a new issue."""
+jayrah/api/jira_client.py:146:        payload = self._build_create_issue_payload(
+jayrah/api/jira_client.py:147:            issuetype,
+jayrah/api/jira_client.py:156:        return self._request("POST", "issue", jeez=payload)
+jayrah/api/jira_client.py:158:    def _build_create_issue_payload(
+jayrah/api/jira_client.py:160:        issuetype: str,
+jayrah/api/jira_client.py:169:        """Build the payload for creating an issue."""
+jayrah/api/jira_client.py:172:                "project": {"key": self.config.get("jira_project")},
+jayrah/api/jira_client.py:174:                "issuetype": {"name": issuetype},
+jayrah/api/jira_client.py:203:    def get_issue(
+jayrah/api/jira_client.py:204:        self, issue_key: str, fields: Optional[List[str]] = None, use_cache: bool = True
+jayrah/api/jira_client.py:206:        """Get a specific issue by key."""
+jayrah/api/jira_client.py:212:            log(f"Getting issue: {issue_key} with fields: {fields}")
+jayrah/api/jira_client.py:215:            "GET", f"issue/{issue_key}", params=params, use_cache=use_cache
+jayrah/api/jira_client.py:218:    def update_issue(self, issue_key: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+jayrah/api/jira_client.py:219:        """Update an existing issue's fields."""
+jayrah/api/jira_client.py:230:            log(f"Updating issue: {issue_key}")
+jayrah/api/jira_client.py:233:        return self._request("PUT", f"issue/{issue_key}", jeez=payload)
+jayrah/api/jira_client.py:235:    def get_transitions(self, issue_key: str) -> Dict[str, Any]:
+jayrah/api/jira_client.py:236:        """Get available transitions for an issue."""
+jayrah/api/jira_client.py:238:            "GET", f"issue/{issue_key}/transitions", label="All transitions"
+jayrah/api/jira_client.py:241:    def transition_issue(self, issue_key: str, transition_id: str) -> Dict[str, Any]:
+jayrah/api/jira_client.py:242:        """Transition an issue to a new status."""
+jayrah/api/jira_client.py:246:            log(f"Transitioning issue: {issue_key} with transition ID: {transition_id}")
+jayrah/api/jira_client.py:248:        return self._request("POST", f"issue/{issue_key}/transitions", jeez=payload)
+jayrah/api/jira_client.py:250:    def add_comment(self, issue_key: str, comment: str) -> Dict[str, Any]:
+jayrah/api/jira_client.py:251:        """Add a comment to an issue."""
+jayrah/api/jira_client.py:255:            log(f"Adding comment to issue: {issue_key}")
+jayrah/api/jira_client.py:257:        return self._request("POST", f"issue/{issue_key}/comment", jeez=payload)
+jayrah/api/jira_client.py:259:    def get_issue_types(self, use_cache: bool = True) -> Dict[str, str]:
+jayrah/api/jira_client.py:260:        """Get all available issue types for the project.
+jayrah/api/jira_client.py:266:            Dictionary mapping issue type names to IDs
+jayrah/api/jira_client.py:268:        project_key = self.config.get("jira_project")
+jayrah/api/jira_client.py:275:                log("No project key configured, fetching global issue types")
+jayrah/api/jira_client.py:279:                    "issuetype",
+jayrah/api/jira_client.py:280:                    label="Fetching issue types",
+jayrah/api/jira_client.py:291:                    log(f"Found {len(ret)} global issue types")
+jayrah/api/jira_client.py:295:                    log(f"Failed to fetch global issue types: {e}")
+jayrah/api/jira_client.py:302:                "endpoint": f"issue/createmeta/{project_key}/issuetypes",
+jayrah/api/jira_client.py:303:                "label": "Fetching issue types (modern)",
+jayrah/api/jira_client.py:304:                "parser": self._parse_modern_issue_types,
+jayrah/api/jira_client.py:308:                "endpoint": self.formatter.get_issue_types_endpoint(project_key),
+jayrah/api/jira_client.py:309:                "label": "Fetching issue types",
+jayrah/api/jira_client.py:310:                "parser": self._parse_legacy_issue_types,
+jayrah/api/jira_client.py:314:                "endpoint": "issuetype",
+jayrah/api/jira_client.py:315:                "label": "Fetching issue types (fallback)",
+jayrah/api/jira_client.py:316:                "parser": self._parse_global_issue_types,
+jayrah/api/jira_client.py:340:                            f"✓ Success with {ep_config['name']}: found {len(ret)} issue types"
+jayrah/api/jira_client.py:344:                errors.append(f"{ep_config['name']}: No issue types found in response")
+jayrah/api/jira_client.py:346:                    log(f"No issue types found in {ep_config['name']} response")
+jayrah/api/jira_client.py:383:            log("All endpoints failed to fetch issue types")
+jayrah/api/jira_client.py:389:    def _parse_modern_issue_types(
+jayrah/api/jira_client.py:392:        """Parse issue types from modern Jira DC endpoint."""
+jayrah/api/jira_client.py:394:        if isinstance(response, dict) and "issueTypes" in response:
+jayrah/api/jira_client.py:395:            for it in response["issueTypes"]:
+jayrah/api/jira_client.py:403:    def _parse_legacy_issue_types(
+jayrah/api/jira_client.py:406:        """Parse issue types from legacy/Cloud createmeta endpoint."""
+jayrah/api/jira_client.py:421:                    for it in project.get("issuetypes", []):
+jayrah/api/jira_client.py:429:    def _parse_global_issue_types(
+jayrah/api/jira_client.py:432:        """Parse issue types from global issuetype endpoint."""
+jayrah/api/jira_client.py:445:        issuetype: Optional[str] = None,
+jayrah/api/jira_client.py:446:        issue_types_cache: Optional[Dict[str, str]] = None,
+jayrah/api/jira_client.py:448:        """Get all available priorities for the project, optionally filtered by issue type.
+jayrah/api/jira_client.py:451:            issuetype: Filter priorities by issue type name
+jayrah/api/jira_client.py:452:            issue_types_cache: Pre-fetched issue types dict to avoid duplicate API calls
+jayrah/api/jira_client.py:457:        project_key = self.config.get("jira_project")
+jayrah/api/jira_client.py:463:        # Try modern Jira DC endpoint first if we have an issue type name
+jayrah/api/jira_client.py:464:        if issuetype:
+jayrah/api/jira_client.py:466:                # Use cached issue types or fetch with caching enabled
+jayrah/api/jira_client.py:467:                if issue_types_cache is None:
+jayrah/api/jira_client.py:468:                    issue_types_cache = self.get_issue_types(use_cache=True)
+jayrah/api/jira_client.py:469:                it_id = issue_types_cache.get(issuetype)
+jayrah/api/jira_client.py:471:                    endpoint = f"issue/createmeta/{project_key}/issuetypes/{it_id}"
+jayrah/api/jira_client.py:473:                        "GET", endpoint, label=f"Fetching {issuetype} metadata (modern)"
+jayrah/api/jira_client.py:492:            "expand": "projects.issuetypes.fields",
+jayrah/api/jira_client.py:494:        if issuetype:
+jayrah/api/jira_client.py:495:            params["issuetypeNames"] = issuetype
+jayrah/api/jira_client.py:500:                "issue/createmeta",
+jayrah/api/jira_client.py:509:                        issuetypes = project.get("issuetypes", [])
+jayrah/api/jira_client.py:510:                        for it in issuetypes:
+jayrah/api/jira_client.py:547:            "GET", "user/search", params={"maxResults": 1000}, label="Fetching users"
+jayrah/api/jira_client.py:552:        jql = f"project = {self.config.get('jira_project')}"
+jayrah/api/jira_client.py:555:            "search",
+jayrah/api/jira_client.py:556:            params={"jql": jql, "maxResults": max_results, "fields": "labels"},
+jayrah/api/jira_client.py:559:        # Extract unique labels from all issues
+jayrah/api/jira_client.py:561:        for issue in response.get("issues", []):
+jayrah/api/jira_client.py:562:            labels.update(issue.get("fields", {}).get("labels", []))
+jayrah/api/jira_client.py:568:        jql = f"project = {self.config.get('jira_project')}"
+jayrah/api/jira_client.py:571:            "search",
+jayrah/api/jira_client.py:572:            params={"jql": jql, "maxResults": max_results, "fields": "components"},
+jayrah/api/jira_client.py:575:        # Extract unique components from all issues
+jayrah/api/jira_client.py:577:        for issue in response.get("issues", []):
+jayrah/api/jira_client.py:578:            issue_components = issue.get("fields", {}).get("components", [])
+jayrah/api/jira_client.py:579:            for component in issue_components:
+jayrah/api/jira_client.py:584:    def get_createmeta(self, project_key: str, issuetype_name: str) -> Dict[str, Any]:
+jayrah/api/jira_client.py:585:        """Get creation metadata for a specific project and issue type."""
+jayrah/api/jira_client.py:588:            "issuetypeNames": issuetype_name,
+jayrah/api/jira_client.py:589:            "expand": "projects.issuetypes.fields",
+jayrah/api/jira_client.py:591:        return self._request("GET", "issue/createmeta", params=params)
+jayrah/api/__init__.py:3:from .jira_client import JiraHTTP
+jayrah/api/formatters.py:23:    def get_issue_types_endpoint(self, projectkey) -> str:
+jayrah/api/formatters.py:24:        """Get the endpoint for issue types."""
+jayrah/api/formatters.py:42:    def get_issue_types_endpoint(self, projectkey) -> str:
+jayrah/api/formatters.py:43:        """API v2 endpoint for issue types."""
+jayrah/api/formatters.py:45:            return f"issue/createmeta?projectKeys={projectkey}"
+jayrah/api/formatters.py:46:        return "issuetype"
+jayrah/api/formatters.py:72:    def get_issue_types_endpoint(self, projectkey) -> str:
+jayrah/api/formatters.py:73:        """API v3 endpoint for issue types."""
+jayrah/api/formatters.py:74:        return f"/issue/createmeta?projectKeys={projectkey}&expand=projects.issuetypes"
+jayrah/utils/context_generator.py:15:        issues_client,
+jayrah/utils/context_generator.py:24:            issues_client: Jayrah issues client instance
+jayrah/utils/context_generator.py:30:        self.issues_client = issues_client
+jayrah/utils/context_generator.py:37:    def generate_board_context(self, board_name: str, jql: str, order_by: str) -> str:
+jayrah/utils/context_generator.py:42:            jql: JQL query for the board
+jayrah/utils/context_generator.py:50:            utils.log(f"JQL: {jql}")
+jayrah/utils/context_generator.py:55:        # Fetch all issues with comprehensive data
+jayrah/utils/context_generator.py:56:        issues = self.issues_client.list_issues(
+jayrah/utils/context_generator.py:57:            jql,
+jayrah/utils/context_generator.py:59:            limit=1000,  # Large limit to get all issues
+jayrah/utils/context_generator.py:65:        if not issues:
+jayrah/utils/context_generator.py:67:                utils.log("No issues found for the board")
+jayrah/utils/context_generator.py:68:            return self._format_no_issues(board_name)
+jayrah/utils/context_generator.py:71:            utils.log(f"Found {len(issues)} issues to process")
+jayrah/utils/context_generator.py:75:            return self._generate_markdown_context(board_name, jql, issues)
+jayrah/utils/context_generator.py:76:        return self._generate_plain_context(board_name, jql, issues)
+jayrah/utils/context_generator.py:86:            "issuetype",
+jayrah/utils/context_generator.py:124:        self, board_name: str, jql: str, issues: List[Dict]
+jayrah/utils/context_generator.py:143:        content.append("relationships between issues.")
+jayrah/utils/context_generator.py:160:        content.append(f"**JQL Query:** `{jql}`")
+jayrah/utils/context_generator.py:161:        content.append(f"**Total Issues:** {len(issues)}")
+jayrah/utils/context_generator.py:173:        for i, issue in enumerate(issues, 1):
+jayrah/utils/context_generator.py:174:            key = issue.get("key", f"Issue-{i}")
+jayrah/utils/context_generator.py:175:            summary = issue.get("fields", {}).get("summary", "No summary")
+jayrah/utils/context_generator.py:183:        for issue in issues:
+jayrah/utils/context_generator.py:184:            content.extend(self._format_issue_markdown(issue))
+jayrah/utils/context_generator.py:190:        self, board_name: str, jql: str, issues: List[Dict]
+jayrah/utils/context_generator.py:209:        content.append("comments, metadata, and relationships between issues.")
+jayrah/utils/context_generator.py:225:        content.append(f"JQL Query: {jql}")
+jayrah/utils/context_generator.py:226:        content.append(f"Total Issues: {len(issues)}")
+jayrah/utils/context_generator.py:234:        for i, issue in enumerate(issues, 1):
+jayrah/utils/context_generator.py:235:            content.extend(self._format_issue_plain(issue, i))
+jayrah/utils/context_generator.py:241:    def _format_issue_markdown(self, issue: Dict) -> List[str]:
+jayrah/utils/context_generator.py:242:        """Format a single issue in markdown."""
+jayrah/utils/context_generator.py:244:        fields = issue.get("fields", {})
+jayrah/utils/context_generator.py:245:        key = issue.get("key", "Unknown")
+jayrah/utils/context_generator.py:259:        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+jayrah/utils/context_generator.py:260:        content.append(f"**Type:** {issue_type}")
+jayrah/utils/context_generator.py:330:    def _format_issue_plain(self, issue: Dict, index: int) -> List[str]:
+jayrah/utils/context_generator.py:331:        """Format a single issue in plain text."""
+jayrah/utils/context_generator.py:333:        fields = issue.get("fields", {})
+jayrah/utils/context_generator.py:334:        key = issue.get("key", "Unknown")
+jayrah/utils/context_generator.py:347:        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+jayrah/utils/context_generator.py:348:        content.append(f"Type: {issue_type}")
+jayrah/utils/context_generator.py:525:    def _format_no_issues(self, board_name: str) -> str:
+jayrah/utils/context_generator.py:526:        """Format message when no issues are found."""
+jayrah/utils/context_generator.py:533:for consumption by Large Language Models (LLMs). However, no issues were found in this board.
+jayrah/utils/context_generator.py:541:No issues found in this board.
+jayrah/utils/context_generator.py:549:issues were found in this board.
+jayrah/utils/context_generator.py:556:No issues found in this board.
+jayrah/utils/issue_view.py:1:"""Utilities for rendering and displaying Jira issues in the terminal."""
+jayrah/utils/issue_view.py:8:import jira2markdown
+jayrah/utils/issue_view.py:77:def build_issue(issue, config, comments_count):
+jayrah/utils/issue_view.py:78:    """Return issue in a pretty formatted view as a string"""
+jayrah/utils/issue_view.py:79:    fields = issue["fields"]
+jayrah/utils/issue_view.py:82:    issue_type = fields["issuetype"]["name"]
+jayrah/utils/issue_view.py:83:    issue_status = fields["status"]["name"]
+jayrah/utils/issue_view.py:84:    issue_priority = fields["priority"]["name"]
+jayrah/utils/issue_view.py:86:    type_emoji = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, ("❓", "??"))[0]
+jayrah/utils/issue_view.py:87:    status_emoji = defaults.STATUS_EMOJI.get(issue_status, "❓")
+jayrah/utils/issue_view.py:88:    defaults.PRIORITY_EMOJI.get(issue_priority, "⚪")
+jayrah/utils/issue_view.py:90:    plain_title = f"{type_emoji} {issue['key']}: {fields['summary']}"
+jayrah/utils/issue_view.py:93:    # Add issue title
+jayrah/utils/issue_view.py:99:    output.append(f"* Status: {issue_status} {status_emoji}")
+jayrah/utils/issue_view.py:101:    color_code = defaults.PRIORITY_COLORS.get(issue_priority, "")
+jayrah/utils/issue_view.py:103:    output.append(f"* Priority: {color_code}{issue_priority}{reset_code}")
+jayrah/utils/issue_view.py:104:    output.append(f"* Type: {issue_type} {type_emoji}")
+jayrah/utils/issue_view.py:191:            markdown_description += jira2markdown.convert(description_text)
+jayrah/utils/issue_view.py:238:                comment_content = jira2markdown.convert(comment_body)
+jayrah/api/auth.py:36:                "Basic authentication requires both jira_user and jira_password"
+jayrah/api/auth.py:50:        username = config.get("jira_user")
+jayrah/api/auth.py:51:        password = config.get("jira_password")
+jayrah/api/auth.py:58:        token = config.get("jira_password")
+jayrah/commands/create.py:7:from ..create.create import create_edit_issue, interactive_create
+jayrah/commands/create.py:13:@click.option("--type", "-T", "issuetype", help="Issue type", type=IssueType())
+jayrah/commands/create.py:41:    help="Preview the issue without creating it",
+jayrah/commands/create.py:47:    issuetype,
+jayrah/commands/create.py:58:    """Create an issue"""
+jayrah/commands/create.py:67:        if not issuetype and jayrah_obj.config["create"].get("type"):
+jayrah/commands/create.py:68:            issuetype = jayrah_obj.config["create"]["type"]
+jayrah/commands/create.py:78:    defaults = create_edit_issue(
+jayrah/commands/create.py:81:        issuetype,
+jayrah/commands/create.py:90:    # Create the issue
+jayrah/utils/__init__.py:24:    server = config.get("jira_server")
+jayrah/utils/__init__.py:26:        project = config.get("jira_component")
+jayrah/mcp/server.py:39:        uri=AnyUrl(f"jira://board/{board_name}"),
+jayrah/mcp/server.py:46:def _format_issue_details(ticket: str, issue: Dict) -> str:
+jayrah/mcp/server.py:47:    """Format issue details into a readable string."""
+jayrah/mcp/server.py:48:    fields = issue.get("fields", {})
+jayrah/mcp/server.py:52:    issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+jayrah/mcp/server.py:56:        f"Type: {issue_type}",
+jayrah/mcp/server.py:82:def _format_issues_summary(
+jayrah/mcp/server.py:84:    issues: List[Dict],
+jayrah/mcp/server.py:88:    search_terms: List | None = None,
+jayrah/mcp/server.py:91:    search_term: str | None = None,  # For backward compatibility
+jayrah/mcp/server.py:93:    """Format a list of issues into a readable summary."""
+jayrah/mcp/server.py:94:    # Get the total number of issues (from the page)
+jayrah/mcp/server.py:95:    total_in_page = len(issues)
+jayrah/mcp/server.py:100:    # Get total count if available in the first issue's metadata
+jayrah/mcp/server.py:102:    if issues and "metadata" in issues[0] and "total" in issues[0]["metadata"]:
+jayrah/mcp/server.py:103:        total_count = issues[0]["metadata"]["total"]
+jayrah/mcp/server.py:106:    if not search_terms and search_term:
+jayrah/mcp/server.py:107:        search_terms = [search_term]
+jayrah/mcp/server.py:109:    # Create the summary heading with search term info and filters if applicable
+jayrah/mcp/server.py:111:    if search_terms:
+jayrah/mcp/server.py:112:        # Use the common helper function to format search terms
+jayrah/mcp/server.py:113:        terms_text = boards.format_search_terms(search_terms, use_or)
+jayrah/mcp/server.py:120:    search_info = " " + " ".join(summary_parts) if summary_parts else ""
+jayrah/mcp/server.py:123:        summary = f"Found {total_count} total issues{search_info} on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
+jayrah/mcp/server.py:125:        summary = f"Found {total_in_page} issues{search_info} on board '{board_name}' (Page {page}):\n\n"
+jayrah/mcp/server.py:127:    # Display issues up to the specified limit
+jayrah/mcp/server.py:130:    for i, issue in enumerate(issues[:display_count]):
+jayrah/mcp/server.py:131:        key = issue.get("key", "Unknown")
+jayrah/mcp/server.py:132:        fields = issue.get("fields", {})
+jayrah/mcp/server.py:141:            f"\n... and {total_in_page - display_count} more issues on this page."
+jayrah/mcp/server.py:144:    summary += f"\n\nShowing issues {start_index + 1}-{start_index + display_count}"
+jayrah/mcp/server.py:146:        summary += f" of {total_count} total issues (page {page})."
+jayrah/mcp/server.py:150:    summary += "\nUse the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
+jayrah/mcp/server.py:155:def _format_search_results(
+jayrah/mcp/server.py:156:    jql: str,
+jayrah/mcp/server.py:157:    issues: List[Dict],
+jayrah/mcp/server.py:164:    """Format search results into a readable summary."""
+jayrah/mcp/server.py:166:    summary = f"Found {total} issues matching JQL: {jql}\n"
+jayrah/mcp/server.py:167:    summary += f"Page {page} (showing {len(issues)} issues):\n\n"
+jayrah/mcp/server.py:169:    # Display issues up to the specified limit
+jayrah/mcp/server.py:170:    display_count = min(limit, len(issues))
+jayrah/mcp/server.py:172:    for i, issue in enumerate(issues[:display_count]):
+jayrah/mcp/server.py:173:        key = issue.get("key", "Unknown")
+jayrah/mcp/server.py:174:        fields = issue.get("fields", {})
+jayrah/mcp/server.py:177:        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+jayrah/mcp/server.py:183:        summary += f"{start_at + i + 1}. {key} [{issue_type}]: {summary_text}\n"
+jayrah/mcp/server.py:187:    if len(issues) > display_count:
+jayrah/mcp/server.py:189:            f"... and {len(issues) - display_count} more issues on this page.\n\n"
+jayrah/mcp/server.py:192:    summary += f"Showing issues {start_at + 1}-{start_at + display_count} of {total} total issues (page {page}).\n"
+jayrah/mcp/server.py:193:    summary += "Use the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
+jayrah/mcp/server.py:212:        if uri.scheme != "jira":
+jayrah/mcp/server.py:226:        if resource_type == "issue":
+jayrah/mcp/server.py:227:            return await _read_issue_resource(resource_id)
+jayrah/mcp/server.py:231:        """Read and return issues from a specific board."""
+jayrah/mcp/server.py:232:        jql, order_by = boards.check(board_name, context.wconfig)
+jayrah/mcp/server.py:233:        if not jql or not order_by:
+jayrah/mcp/server.py:234:            return json.dumps({"error": f"Invalid board or missing JQL: {board_name}"})
+jayrah/mcp/server.py:236:        issues = context.boards_obj.issues_client.list_issues(jql, order_by=order_by)
+jayrah/mcp/server.py:237:        return json.dumps({"board": board_name, "issues": issues})
+jayrah/mcp/server.py:239:    async def _read_issue_resource(issue_key: str) -> str:
+jayrah/mcp/server.py:240:        """Read and return details of a specific issue."""
+jayrah/mcp/server.py:242:            issue = context.boards_obj.jira.get_issue(issue_key)
+jayrah/mcp/server.py:243:            return json.dumps(issue)
+jayrah/mcp/server.py:246:                {"error": f"Attribute error fetching issue {issue_key}: {str(e)}"}
+jayrah/mcp/server.py:249:            return json.dumps({"error": f"Error fetching issue {issue_key}: {str(e)}"})
+jayrah/mcp/server.py:259:                name="analyze-jira-issue",
+jayrah/mcp/server.py:260:                description="Analyze a Jira issue and provide insights",
+jayrah/mcp/server.py:263:                        name="issue_key",
+jayrah/mcp/server.py:264:                        description="The Jira issue key (e.g., PROJ-123)",
+jayrah/mcp/server.py:276:        if name == "analyze-jira-issue":
+jayrah/mcp/server.py:277:            return await _generate_analyze_issue_prompt(arguments or {})
+jayrah/mcp/server.py:281:    async def _generate_analyze_issue_prompt(
+jayrah/mcp/server.py:284:        """Generate a prompt to analyze a Jira issue."""
+jayrah/mcp/server.py:285:        issue_key = arguments.get("issue_key")
+jayrah/mcp/server.py:286:        if not issue_key:
+jayrah/mcp/server.py:287:            raise ValueError("Missing required argument: issue_key")
+jayrah/mcp/server.py:290:            issue = context.boards_obj.jira.get_issue(issue_key)
+jayrah/mcp/server.py:291:            issue_data = json.dumps(issue, indent=2)
+jayrah/mcp/server.py:294:                description=f"Analyze Jira issue {issue_key}",
+jayrah/mcp/server.py:300:                            text=f"Please analyze this Jira issue and provide insights on its status, "
+jayrah/mcp/server.py:301:                            f"any blockers, and next steps:\n\n{issue_data}",
+jayrah/mcp/server.py:307:            raise ValueError(f"Error fetching issue {issue_key}: {str(e)}") from e
+jayrah/mcp/server.py:319:                description="Browse Jira boards and list issues",
+jayrah/mcp/server.py:327:                        "search_terms": {
+jayrah/mcp/server.py:330:                            "description": "List of search terms to filter issues by summary and description",
+jayrah/mcp/server.py:334:                            "description": "Use OR instead of AND to combine search terms (default: false)",
+jayrah/mcp/server.py:339:                            "description": "Filter issues by specific fields (e.g., 'status=In Progress', 'priority=High')",
+jayrah/mcp/server.py:343:                            "description": "Maximum number of issues to display (default: 10)",
+jayrah/mcp/server.py:351:                            "description": "Number of issues to retrieve per page (default: 100)",
+jayrah/mcp/server.py:357:            # Create Jira issue
+jayrah/mcp/server.py:359:                name="create-issue",
+jayrah/mcp/server.py:360:                description="Create a new Jira issue",
+jayrah/mcp/server.py:364:                        "issuetype": {
+jayrah/mcp/server.py:384:                    "required": ["issuetype", "summary"],
+jayrah/mcp/server.py:387:            # View Jira issue
+jayrah/mcp/server.py:389:                name="view-issue",
+jayrah/mcp/server.py:390:                description="View details of a specific Jira issue",
+jayrah/mcp/server.py:406:            # Transition Jira issue
+jayrah/mcp/server.py:408:                name="transition-issue",
+jayrah/mcp/server.py:409:                description="Transition a Jira issue to a new status",
+jayrah/mcp/server.py:428:                description="Get available transitions for a Jira issue",
+jayrah/mcp/server.py:440:            # Open issue in browser
+jayrah/mcp/server.py:442:                name="open-issue",
+jayrah/mcp/server.py:443:                description="Get URL to open a Jira issue in browser",
+jayrah/mcp/server.py:464:            # Comprehensive Jira search
+jayrah/mcp/server.py:466:                name="search",
+jayrah/mcp/server.py:467:                description="Comprehensive search across Jira issues with flexible JQL field filtering",
+jayrah/mcp/server.py:471:                        "jql": {
+jayrah/mcp/server.py:473:                            "description": "Custom JQL query string (takes precedence over other parameters if provided)",
+jayrah/mcp/server.py:477:                            "description": "Text to search in summary and description fields",
+jayrah/mcp/server.py:499:                        "issue_type": {
+jayrah/mcp/server.py:515:                            "description": "Filter issues created after this date (YYYY-MM-DD format)",
+jayrah/mcp/server.py:519:                            "description": "Filter issues created before this date (YYYY-MM-DD format)",
+jayrah/mcp/server.py:523:                            "description": "Filter issues updated after this date (YYYY-MM-DD format)",
+jayrah/mcp/server.py:527:                            "description": "Filter issues updated before this date (YYYY-MM-DD format)",
+jayrah/mcp/server.py:561:                            "description": "Maximum number of issues to display (default: 10)",
+jayrah/mcp/server.py:569:                            "description": "Number of issues to retrieve per page (default: 100)",
+jayrah/mcp/server.py:574:            # Add comment to Jira issue
+jayrah/mcp/server.py:577:                description="Add a comment to a Jira issue",
+jayrah/mcp/server.py:593:            # Get raw issue JSON
+jayrah/mcp/server.py:595:                name="get-issue-json",
+jayrah/mcp/server.py:596:                description="Get raw JSON data for a Jira issue including all fields like story points",
+jayrah/mcp/server.py:611:                description="Aggregate story points from a JQL query to calculate totals",
+jayrah/mcp/server.py:615:                        "jql": {
+jayrah/mcp/server.py:617:                            "description": "JQL query to search for issues",
+jayrah/mcp/server.py:620:                    "required": ["jql"],
+jayrah/mcp/server.py:632:            "create-issue": _handle_create_issue,
+jayrah/mcp/server.py:633:            "view-issue": _handle_view_issue,
+jayrah/mcp/server.py:634:            "transition-issue": _handle_transition_issue,
+jayrah/mcp/server.py:636:            "open-issue": _handle_open_issue,
+jayrah/mcp/server.py:638:            "search": _handle_search,
+jayrah/mcp/server.py:640:            "get-issue-json": _handle_get_issue_json,
+jayrah/mcp/server.py:658:        """Handle the browse tool to list issues on a board."""
+jayrah/mcp/server.py:663:        search_terms = arguments.get("search_terms", [])  # Get search terms if provided
+jayrah/mcp/server.py:668:        if not search_terms and "search" in arguments and arguments["search"]:
+jayrah/mcp/server.py:669:            search_terms = [arguments["search"]]
+jayrah/mcp/server.py:674:        jql, order_by = boards.check(board, context.wconfig)
+jayrah/mcp/server.py:675:        if not jql or not order_by:
+jayrah/mcp/server.py:678:                    type="text", text=f"Invalid board or missing JQL: {board}"
+jayrah/mcp/server.py:682:        # Use the common function to build the search JQL
+jayrah/mcp/server.py:683:        jql = boards.build_search_jql(
+jayrah/mcp/server.py:684:            jql, search_terms, use_or, context.wconfig.get("verbose", False), filters
+jayrah/mcp/server.py:691:        issues = context.boards_obj.issues_client.list_issues(
+jayrah/mcp/server.py:692:            jql, order_by=order_by, limit=page_size, all_pages=False, start_at=start_at
+jayrah/mcp/server.py:695:        # If we have issues returned, try to get the total count from the metadata
+jayrah/mcp/server.py:696:        if issues:
+jayrah/mcp/server.py:697:            # This is a bit of a hack since Jira API doesn't return total with the issues
+jayrah/mcp/server.py:698:            # We need to use search_issues directly to get the total
+jayrah/mcp/server.py:700:                result = context.boards_obj.jira.search_issues(
+jayrah/mcp/server.py:701:                    jql,
+jayrah/mcp/server.py:708:                # Add the total to each issue's metadata (or create metadata if it doesn't exist)
+jayrah/mcp/server.py:709:                for issue in issues:
+jayrah/mcp/server.py:710:                    if "metadata" not in issue:
+jayrah/mcp/server.py:711:                        issue["metadata"] = {}
+jayrah/mcp/server.py:712:                    issue["metadata"]["total"] = total
+jayrah/mcp/server.py:720:                text=_format_issues_summary(
+jayrah/mcp/server.py:722:                    issues,
+jayrah/mcp/server.py:726:                    search_terms=search_terms,
+jayrah/mcp/server.py:733:    async def _handle_create_issue(arguments: Dict) -> Sequence[ContentType]:
+jayrah/mcp/server.py:734:        """Handle the create-issue tool to create a new Jira issue."""
+jayrah/mcp/server.py:735:        issuetype = arguments.get("issuetype", "Story")
+jayrah/mcp/server.py:745:        result = context.boards_obj.jira.create_issue(
+jayrah/mcp/server.py:746:            issuetype=issuetype,
+jayrah/mcp/server.py:754:        issue_key = result.get("key", "Unknown")
+jayrah/mcp/server.py:758:                text=f"Created issue {issue_key} successfully.\nSummary: {summary}",
+jayrah/mcp/server.py:762:    async def _handle_view_issue(arguments: Dict) -> Sequence[ContentType]:
+jayrah/mcp/server.py:763:        """Handle the view-issue tool to view details of a specific Jira issue."""
+jayrah/mcp/server.py:768:        issue = context.boards_obj.jira.get_issue(ticket)
+jayrah/mcp/server.py:769:        formatted_issue = _format_issue_details(ticket, issue)
+jayrah/mcp/server.py:770:        return [types.TextContent(type="text", text=formatted_issue)]
+jayrah/mcp/server.py:772:    async def _handle_transition_issue(arguments: Dict) -> Sequence[ContentType]:
+jayrah/mcp/server.py:773:        """Handle the transition-issue tool to transition a Jira issue to a new status."""
+jayrah/mcp/server.py:780:        # This could be improved to handle the actual return value of transition_issue
+jayrah/mcp/server.py:781:        context.boards_obj.jira.transition_issue(ticket, transition_id)
+jayrah/mcp/server.py:786:                text=f"Successfully transitioned issue {ticket} with transition ID {transition_id}",
+jayrah/mcp/server.py:791:        """Handle the get-transitions tool to get available transitions for a Jira issue."""
+jayrah/mcp/server.py:796:        transitions = context.boards_obj.jira.get_transitions(ticket)
+jayrah/mcp/server.py:801:    async def _handle_open_issue(arguments: Dict) -> Sequence[ContentType]:
+jayrah/mcp/server.py:802:        """Handle the open-issue tool to get URL to open a Jira issue in browser."""
+jayrah/mcp/server.py:807:        url = utils.make_full_url(ticket, context.wconfig.get("jira_server"))
+jayrah/mcp/server.py:821:    async def _handle_search(arguments: Dict) -> Sequence[ContentType]:
+jayrah/mcp/server.py:822:        """Handle the search tool for comprehensive Jira issue searching."""
+jayrah/mcp/server.py:823:        # Get search parameters
+jayrah/mcp/server.py:824:        custom_jql = arguments.get("jql")
+jayrah/mcp/server.py:831:        issue_type = arguments.get("issue_type")
+jayrah/mcp/server.py:849:        # If custom JQL is provided, use it directly
+jayrah/mcp/server.py:850:        if custom_jql:
+jayrah/mcp/server.py:851:            jql = custom_jql
+jayrah/mcp/server.py:853:            # Build JQL from individual parameters
+jayrah/mcp/server.py:854:            jql_parts = []
+jayrah/mcp/server.py:858:                jql_parts.append(f'project = "{project}"')
+jayrah/mcp/server.py:860:            # Text search in summary and description
+jayrah/mcp/server.py:862:                jql_parts.append(f'(summary ~ "{text}" OR description ~ "{text}")')
+jayrah/mcp/server.py:866:                jql_parts.append(f'status = "{status}"')
+jayrah/mcp/server.py:870:                jql_parts.append(f'assignee = "{assignee}"')
+jayrah/mcp/server.py:874:                jql_parts.append(f'reporter = "{reporter}"')
+jayrah/mcp/server.py:878:                jql_parts.append(f'priority = "{priority}"')
+jayrah/mcp/server.py:881:            if issue_type:
+jayrah/mcp/server.py:882:                jql_parts.append(f'issuetype = "{issue_type}"')
+jayrah/mcp/server.py:890:                    jql_parts.append(f"({' OR '.join(comp_filters)})")
+jayrah/mcp/server.py:898:                    jql_parts.append(f"({' AND '.join(label_filters)})")
+jayrah/mcp/server.py:902:                jql_parts.append(f'created >= "{created_after}"')
+jayrah/mcp/server.py:904:                jql_parts.append(f'created <= "{created_before}"')
+jayrah/mcp/server.py:906:                jql_parts.append(f'updated >= "{updated_after}"')
+jayrah/mcp/server.py:908:                jql_parts.append(f'updated <= "{updated_before}"')
+jayrah/mcp/server.py:912:                jql_parts.append(f'fixVersion = "{fix_version}"')
+jayrah/mcp/server.py:914:                jql_parts.append(f'affectedVersion = "{affects_version}"')
+jayrah/mcp/server.py:919:                jql_parts.append(f'("Epic Link" = "{epic}" OR "Epic Name" ~ "{epic}")')
+jayrah/mcp/server.py:923:                jql_parts.append(f'Sprint = "{sprint}"')
+jayrah/mcp/server.py:927:                jql_parts.append(f'{field} = "{value}"')
+jayrah/mcp/server.py:930:            if jql_parts:
+jayrah/mcp/server.py:931:                jql = " AND ".join(jql_parts)
+jayrah/mcp/server.py:933:                # Default search if no criteria provided
+jayrah/mcp/server.py:934:                jql = "order by updated DESC"
+jayrah/mcp/server.py:936:        # Add ordering if not already in the JQL
+jayrah/mcp/server.py:937:        if "order by" not in jql.lower():
+jayrah/mcp/server.py:938:            jql += f" ORDER BY {order_by} {order_direction}"
+jayrah/mcp/server.py:944:            # Execute the search
+jayrah/mcp/server.py:945:            result = context.boards_obj.jira.search_issues(
+jayrah/mcp/server.py:946:                jql, start_at=start_at, max_results=page_size
+jayrah/mcp/server.py:949:            issues = result.get("issues", [])
+jayrah/mcp/server.py:953:            summary_text = _format_search_results(
+jayrah/mcp/server.py:954:                jql, issues, total, limit, page, page_size, start_at
+jayrah/mcp/server.py:962:                    type="text", text=f"Error executing search: {str(e)}\nJQL: {jql}"
+jayrah/mcp/server.py:967:        """Handle the add-comment tool to add a comment to a Jira issue."""
+jayrah/mcp/server.py:974:        context.boards_obj.jira.add_comment(ticket, comment)
+jayrah/mcp/server.py:979:                text=f"Successfully added comment to issue {ticket}",
+jayrah/mcp/server.py:983:    async def _handle_get_issue_json(arguments: Dict) -> Sequence[ContentType]:
+jayrah/mcp/server.py:984:        """Handle the get-issue-json tool to get raw JSON for a Jira issue."""
+jayrah/mcp/server.py:989:        issue = context.boards_obj.jira.get_issue(ticket)
+jayrah/mcp/server.py:990:        return [types.TextContent(type="text", text=json.dumps(issue, indent=2))]
+jayrah/mcp/server.py:993:        """Handle the aggregate-story-points tool to calculate total story points from a JQL query."""
+jayrah/mcp/server.py:994:        jql = arguments.get("jql")
+jayrah/mcp/server.py:995:        if not jql:
+jayrah/mcp/server.py:996:            raise ValueError("JQL query is required")
+jayrah/mcp/server.py:998:        # Add ordering if not already in the JQL
+jayrah/mcp/server.py:999:        if "order by" not in jql.lower():
+jayrah/mcp/server.py:1000:            jql += " ORDER BY updated DESC"
+jayrah/mcp/server.py:1003:            # Fetch all issues matching the JQL (paginate if needed)
+jayrah/mcp/server.py:1004:            all_issues = []
+jayrah/mcp/server.py:1010:                result = context.boards_obj.jira.search_issues(
+jayrah/mcp/server.py:1011:                    jql, start_at=start_at, max_results=page_size
+jayrah/mcp/server.py:1013:                issues = result.get("issues", [])
+jayrah/mcp/server.py:1014:                all_issues.extend(issues)
+jayrah/mcp/server.py:1019:                if len(all_issues) >= total:
+jayrah/mcp/server.py:1028:            issues_with_points = 0
+jayrah/mcp/server.py:1029:            issues_without_points = []
+jayrah/mcp/server.py:1031:            # Try to identify the story points field from the first issue
+jayrah/mcp/server.py:1032:            if all_issues:
+jayrah/mcp/server.py:1033:                first_issue = all_issues[0]
+jayrah/mcp/server.py:1034:                fields = first_issue.get("fields", {})
+jayrah/mcp/server.py:1048:            for issue in all_issues:
+jayrah/mcp/server.py:1049:                key = issue.get("key", "Unknown")
+jayrah/mcp/server.py:1050:                fields = issue.get("fields", {})
+jayrah/mcp/server.py:1056:                        issues_with_points += 1
+jayrah/mcp/server.py:1058:                        issues_without_points.append(key)
+jayrah/mcp/server.py:1060:                    issues_without_points.append(key)
+jayrah/mcp/server.py:1065:            result_text += f"JQL: {jql}\n\n"
+jayrah/mcp/server.py:1066:            result_text += f"Total Issues: {len(all_issues)}\n"
+jayrah/mcp/server.py:1067:            result_text += f"Issues with Story Points: {issues_with_points}\n"
+jayrah/mcp/server.py:1069:                f"Issues without Story Points: {len(issues_without_points)}\n"
+jayrah/mcp/server.py:1078:            if issues_without_points and len(issues_without_points) <= 20:
+jayrah/mcp/server.py:1080:                for issue_key in issues_without_points:
+jayrah/mcp/server.py:1081:                    result_text += f"  - {issue_key}\n"
+jayrah/mcp/server.py:1082:            elif issues_without_points:
+jayrah/mcp/server.py:1083:                result_text += "\nFirst 20 issues without story points:\n"
+jayrah/mcp/server.py:1084:                for issue_key in issues_without_points[:20]:
+jayrah/mcp/server.py:1085:                    result_text += f"  - {issue_key}\n"
+jayrah/mcp/server.py:1086:                result_text += f"  ... and {len(issues_without_points) - 20} more\n"
+jayrah/mcp/server.py:1094:                    text=f"Error aggregating story points: {str(e)}\nJQL: {jql}",
+jayrah/commands/browse.py:14:@click.argument("search_terms", nargs=-1)
+jayrah/commands/browse.py:15:@click.option("--query", "-q", "jql_query", help="JQL query to use directly")
+jayrah/commands/browse.py:17:    "--or", "-o", "use_or", is_flag=True, help="Use OR instead of AND for search terms"
+jayrah/commands/browse.py:24:    help="Filter issues by specific field (e.g., 'status=\"In Progress\"')",
+jayrah/commands/browse.py:32:    help="Automatically select the first matching issue and print its URL",
+jayrah/commands/browse.py:36:    jayrah_obj, board, search_terms, use_or, filters, list_boards, choose, jql_query
+jayrah/commands/browse.py:41:    SEARCH_TERMS are optional search terms that filter issues by summary or description.
+jayrah/commands/browse.py:52:    if jql_query:
+jayrah/commands/browse.py:53:        jql = jql_query
+jayrah/commands/browse.py:56:            search_terms = (board,) + search_terms
+jayrah/commands/browse.py:60:        jql, order_by = boards.check(board, jayrah_obj.config)
+jayrah/commands/browse.py:61:        if not jql or not order_by:
+jayrah/commands/browse.py:64:    # Use the common function to build the search JQL
+jayrah/commands/browse.py:65:    jql = boards.build_search_jql(
+jayrah/commands/browse.py:66:        jql, search_terms, use_or, jayrah_obj.verbose, filters
+jayrah/commands/browse.py:69:    issues = jayrah_obj.issues_client.list_issues(jql, order_by=order_by)
+jayrah/commands/browse.py:71:    if not issues:
+jayrah/commands/browse.py:72:        boards.show_no_issues_message(search_terms, use_or, filters)
+jayrah/commands/browse.py:75:    jayrah_obj.jql = jql
+jayrah/commands/browse.py:78:    selected_key = jayrah_obj.fuzzy_search(issues, auto_choose=choose)
+jayrah/commands/browse.py:84:        server = jayrah_obj.config.get("jira_server")
+jayrah/commands/browse.py:86:            raise click.ClickException("jira_server not configured")
+jayrah/config/defaults.py:8:        "name": "myissue",
+jayrah/config/defaults.py:9:        "jql": "assignee = currentUser() AND resolution = Unresolved",
+jayrah/config/defaults.py:11:        "description": "My current unresolved issues",
+jayrah/config/defaults.py:23:    "issuetype",
+jayrah/config/defaults.py:59:    "Cannot Reproduce": "🔍",  # Magnifying glass for issues that can't be reproduced
+jayrah/ui/boards.py:8:from ..api import jira_client as jirahttp
+jayrah/ui/boards.py:10:from . import issues
+jayrah/ui/boards.py:41:    jql = chosen_boards[0].get("jql", "").strip() if chosen_boards else None
+jayrah/ui/boards.py:42:    if not jql:
+jayrah/ui/boards.py:43:        click.secho(f"Board {board} has no JQL defined", fg="red")
+jayrah/ui/boards.py:47:        print(f"Running query: {jql} ORDER BY: {order_by}")
+jayrah/ui/boards.py:48:    return jql, order_by
+jayrah/ui/boards.py:56:    jql: str = ""
+jayrah/ui/boards.py:68:        self.jira = jirahttp.JiraHTTP(
+jayrah/ui/boards.py:77:        self.issues_client = issues.Issues(self.config, self.jira)
+jayrah/ui/boards.py:79:    def fuzzy_search(self, issues, auto_choose: bool = False):
+jayrah/ui/boards.py:80:        """Use interactive UI to select an issue."""
+jayrah/ui/boards.py:83:                f"Preparing UI interface for {len(issues)} issues",
+jayrah/ui/boards.py:91:                issues,
+jayrah/ui/boards.py:94:                self.jql,
+jayrah/ui/boards.py:107:def build_search_jql(
+jayrah/ui/boards.py:108:    base_jql: str,
+jayrah/ui/boards.py:109:    search_terms,
+jayrah/ui/boards.py:114:    """Build a JQL query with search terms and field filters.
+jayrah/ui/boards.py:117:        base_jql: The base JQL query to extend with search conditions
+jayrah/ui/boards.py:118:        search_terms: A list of search terms to filter issues by summary or description
+jayrah/ui/boards.py:119:        use_or: Whether to combine search terms with OR instead of AND
+jayrah/ui/boards.py:124:        The extended JQL query string with search conditions and filters
+jayrah/ui/boards.py:126:    extended_jql = base_jql
+jayrah/ui/boards.py:128:    # Add search terms if provided
+jayrah/ui/boards.py:129:    if search_terms:
+jayrah/ui/boards.py:130:        # Create individual search conditions for each term
+jayrah/ui/boards.py:131:        search_conditions = []
+jayrah/ui/boards.py:132:        for term in search_terms:
+jayrah/ui/boards.py:134:            search_conditions.append(term_condition)
+jayrah/ui/boards.py:136:        # Combine search conditions with AND or OR based on the flag
+jayrah/ui/boards.py:138:        combined_condition = operator.join(search_conditions)
+jayrah/ui/boards.py:140:        # Add combined condition to existing JQL
+jayrah/ui/boards.py:141:        extended_jql = f"({base_jql}) AND ({combined_condition})"
+jayrah/ui/boards.py:173:            filter_jql = " AND ".join(filter_conditions)
+jayrah/ui/boards.py:174:            extended_jql = f"({extended_jql}) AND ({filter_jql})"
+jayrah/ui/boards.py:178:                click.secho(f"Applied filters: {filter_jql}", fg="blue")
+jayrah/ui/boards.py:180:    # Show search message if verbose
+jayrah/ui/boards.py:181:    if verbose and search_terms:
+jayrah/ui/boards.py:182:        terms_text = format_search_terms(search_terms, use_or)
+jayrah/ui/boards.py:185:    return extended_jql
+jayrah/ui/boards.py:188:def format_search_terms(search_terms, use_or: bool = False) -> str:
+jayrah/ui/boards.py:189:    """Format search terms for display in messages.
+jayrah/ui/boards.py:192:        search_terms: A list of search terms
+jayrah/ui/boards.py:196:        A formatted string of search terms joined with the appropriate operator
+jayrah/ui/boards.py:198:    if not search_terms:
+jayrah/ui/boards.py:202:    return operator.join(f"'{term}'" for term in search_terms)
+jayrah/ui/boards.py:205:def show_no_issues_message(
+jayrah/ui/boards.py:206:    search_terms=None, use_or: bool = False, filters=None
+jayrah/ui/boards.py:208:    """Display a standardized message when no issues are found.
+jayrah/ui/boards.py:211:        search_terms: Optional list of search terms that were used
+jayrah/ui/boards.py:217:    if search_terms:
+jayrah/ui/boards.py:218:        terms_text = format_search_terms(search_terms, use_or)
+jayrah/ui/boards.py:228:            f"No issues found matching{combined_message}", fg="yellow", err=True
+jayrah/ui/boards.py:231:        click.secho("No issues found", fg="yellow", err=True)
+jayrah/config/__init__.py:20:    if not config["jira_server"]:
+jayrah/config/__init__.py:22:            "Enter Jira server URL (or workspace id for atlassian cloud)"
+jayrah/config/__init__.py:27:                server_url = f"{server_url}.atlassian.net"
+jayrah/config/__init__.py:33:        config["jira_server"] = server_url
+jayrah/config/__init__.py:50:    if not config["jira_user"]:
+jayrah/config/__init__.py:51:        config["jira_user"] = Prompt.ask("Enter Jira username")
+jayrah/config/__init__.py:54:    if "jira_project" not in config or not config["jira_project"]:
+jayrah/config/__init__.py:55:        config["jira_project"] = Prompt.ask("Enter your Jira Project (ie: SRVKP)")
+jayrah/config/__init__.py:58:    if not config["jira_password"]:
+jayrah/config/__init__.py:59:        config["jira_password"] = Prompt.ask(
+jayrah/config/__init__.py:65:    if config["jira_server"] and not config["jira_server"].startswith("https://"):
+jayrah/config/__init__.py:66:        config["jira_server"] = "https://" + config["jira_server"]
+jayrah/config/__init__.py:85:            "jira_server" in ret
+jayrah/config/__init__.py:86:            and ret["jira_server"]
+jayrah/config/__init__.py:87:            and not ret["jira_server"].startswith("https://")
+jayrah/config/__init__.py:89:            ret["jira_server"] = "https://" + ret["jira_server"]
+jayrah/config/__init__.py:92:            "jira_password" in ret
+jayrah/config/__init__.py:93:            and ret["jira_password"]
+jayrah/config/__init__.py:94:            and re.match(r"(pass|passage)::", ret["jira_password"])
+jayrah/config/__init__.py:96:            ret["jira_password"] = utils.get_pass_key(
+jayrah/config/__init__.py:97:                ret["jira_password"].split("::")[0],
+jayrah/config/__init__.py:98:                ret["jira_password"].split("::")[-1],
+jayrah/config/__init__.py:135:                "jira_server",
+jayrah/config/__init__.py:136:                "jira_user",
+jayrah/config/__init__.py:137:                "jira_password",
+jayrah/config/__init__.py:138:                "jira_component",
+jayrah/config/__init__.py:139:                "jira_project",
+jayrah/config/__init__.py:168:        "jira_server",
+jayrah/config/__init__.py:169:        "jira_user",
+jayrah/config/__init__.py:170:        "jira_password",
+jayrah/config/__init__.py:171:        "jira_project",
+jayrah/config/__init__.py:175:        "jira_component",
+jayrah/ui/issues.py:8:    def __init__(self, config: dict, jira):
+jayrah/ui/issues.py:9:        self.jira = jira
+jayrah/ui/issues.py:14:    def list_issues(
+jayrah/ui/issues.py:16:        jql,
+jayrah/ui/issues.py:24:        """List issues using JQL query."""
+jayrah/ui/issues.py:30:            utils.log(f"Listing issues with JQL: {jql}")
+jayrah/ui/issues.py:36:        issues = []
+jayrah/ui/issues.py:42:            result = self.jira.search_issues(
+jayrah/ui/issues.py:43:                jql,
+jayrah/ui/issues.py:50:            batch_issues = result.get("issues", [])
+jayrah/ui/issues.py:51:            issues.extend(batch_issues)
+jayrah/ui/issues.py:55:                    f"Retrieved {len(batch_issues)} issues (total: {len(issues)})",
+jayrah/ui/issues.py:67:        return issues
+jayrah/ui/web/server.py:12:from jayrah.ui.shared_helpers import filter_issues_by_text, get_row_data_for_issue
+jayrah/ui/web/server.py:44:            # Use the default board's JQL if available, otherwise get recent issues
+jayrah/ui/web/server.py:46:                jql = wconfig["boards"][0].get(
+jayrah/ui/web/server.py:47:                    "jql", "updated >= -30d ORDER BY updated DESC"
+jayrah/ui/web/server.py:50:                jql = "updated >= -30d ORDER BY updated DESC"  # Default: issues updated in last 30 days
+jayrah/ui/web/server.py:52:            result = self.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
+jayrah/ui/web/server.py:53:            self.issues = result.get("issues", []) if result else []
+jayrah/ui/web/server.py:54:            print(f"Loaded {len(self.issues)} issues from Jira using JQL: {jql}")
+jayrah/ui/web/server.py:56:            print(f"Error loading issues: {e}")
+jayrah/ui/web/server.py:57:            self.issues = []
+jayrah/ui/web/server.py:73:@app.get("/api/issues")
+jayrah/ui/web/server.py:74:def get_issues(
+jayrah/ui/web/server.py:77:    if not state.issues:
+jayrah/ui/web/server.py:79:            status_code=503, detail="No issues available - check Jira configuration"
+jayrah/ui/web/server.py:81:    issues = state.issues
+jayrah/ui/web/server.py:83:        issues = filter_issues_by_text(issues, q)
+jayrah/ui/web/server.py:84:    return [get_row_data_for_issue(issue) for issue in issues]
+jayrah/ui/web/server.py:87:@app.get("/api/issue/{key}")
+jayrah/ui/web/server.py:88:def get_issue_detail(key: str, state: WebAppState = Depends(get_app_state)):
+jayrah/ui/web/server.py:89:    if not state.issues:
+jayrah/ui/web/server.py:90:        raise HTTPException(status_code=503, detail="No issues available")
+jayrah/ui/web/server.py:91:    for issue in state.issues:
+jayrah/ui/web/server.py:92:        if issue["key"] == key:
+jayrah/ui/web/server.py:95:                "issue": issue,
+jayrah/ui/web/server.py:104:    jira_url = None
+jayrah/ui/web/server.py:107:        jira_url = state.config.get("jira_server")
+jayrah/ui/web/server.py:113:        "jira_base_url": jira_url,
+jayrah/ui/web/server.py:135:                        "jql": board.get("jql", ""),
+jayrah/ui/web/server.py:146:    """Switch to a different board and reload issues"""
+jayrah/ui/web/server.py:151:        # Get the new board's JQL and order_by
+jayrah/ui/web/server.py:152:        jql, order_by = boards.check(board_name, state.config)
+jayrah/ui/web/server.py:153:        if not jql:
+jayrah/ui/web/server.py:156:                detail=f"Invalid board or missing JQL: {board_name}",
+jayrah/ui/web/server.py:159:        # Search for issues with the new board's JQL
+jayrah/ui/web/server.py:160:        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
+jayrah/ui/web/server.py:161:        new_issues = result.get("issues", []) if result else []
+jayrah/ui/web/server.py:163:        # Update the state with new issues
+jayrah/ui/web/server.py:164:        state.issues = new_issues
+jayrah/ui/web/server.py:167:            f"Switched to board '{board_name}' with {len(new_issues)} issues using JQL: {jql}"
+jayrah/ui/web/server.py:173:            "issue_count": len(new_issues),
+jayrah/ui/web/server.py:174:            "jql": jql,
+jayrah/ui/web/server.py:184:def refresh_issues(state: WebAppState = Depends(get_app_state)):
+jayrah/ui/web/server.py:185:    """Refresh issues by clearing cache and reloading from Jira"""
+jayrah/ui/web/server.py:188:        state.jayrah_obj.jira.cache.clear()
+jayrah/ui/web/server.py:190:        # Use the default board's JQL if available, otherwise get recent issues
+jayrah/ui/web/server.py:192:            jql = state.config["boards"][0].get(
+jayrah/ui/web/server.py:193:                "jql", "updated >= -30d ORDER BY updated DESC"
+jayrah/ui/web/server.py:196:            jql = "updated >= -30d ORDER BY updated DESC"  # Default: issues updated in last 30 days
+jayrah/ui/web/server.py:198:        # Fetch fresh issues from Jira (use_cache=False to bypass cache)
+jayrah/ui/web/server.py:199:        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
+jayrah/ui/web/server.py:200:        new_issues = result.get("issues", []) if result else []
+jayrah/ui/web/server.py:202:        # Update the state with new issues
+jayrah/ui/web/server.py:203:        state.issues = new_issues
+jayrah/ui/web/server.py:205:        print(f"Refreshed {len(new_issues)} issues from Jira using JQL: {jql}")
+jayrah/ui/web/server.py:209:            "issue_count": len(new_issues),
+jayrah/ui/web/server.py:210:            "jql": jql,
+jayrah/ui/web/server.py:213:        print(f"Error refreshing issues: {e}")
+jayrah/ui/web/server.py:215:            status_code=500, detail=f"Error refreshing issues: {str(e)}"
+jayrah/ui/web/server.py:224:        all_labels = state.jayrah_obj.jira.get_labels()
+jayrah/ui/web/server.py:243:@app.put("/api/issue/{key}/labels")
+jayrah/ui/web/server.py:244:def update_issue_labels(
+jayrah/ui/web/server.py:247:    """Update issue labels"""
+jayrah/ui/web/server.py:251:        # Update the issue with new labels
+jayrah/ui/web/server.py:252:        state.jayrah_obj.jira.update_issue(key, {"labels": new_labels})
+jayrah/ui/web/server.py:255:        for issue in state.issues:
+jayrah/ui/web/server.py:256:            if issue["key"] == key:
+jayrah/ui/web/server.py:257:                issue["fields"]["labels"] = new_labels
+jayrah/ui/web/server.py:272:@app.get("/api/issue/{key}/transitions")
+jayrah/ui/web/server.py:273:def get_issue_transitions(key: str, state: WebAppState = Depends(get_app_state)):
+jayrah/ui/web/server.py:274:    """Get available transitions for an issue"""
+jayrah/ui/web/server.py:276:        transitions_data = state.jayrah_obj.jira.get_transitions(key)
+jayrah/ui/web/server.py:285:@app.post("/api/issue/{key}/transitions")
+jayrah/ui/web/server.py:286:def apply_issue_transition(
+jayrah/ui/web/server.py:289:    """Apply a transition to an issue"""
+jayrah/ui/web/server.py:296:        result = state.jayrah_obj.jira.transition_issue(key, transition_id)
+jayrah/ui/web/server.py:298:        # Update the local cache - refresh the specific issue
+jayrah/ui/web/server.py:300:            # Fetch fresh issue data to get updated status
+jayrah/ui/web/server.py:301:            updated_issue_data = state.jayrah_obj.jira.get_issue(key)
+jayrah/ui/web/server.py:303:            for i, issue in enumerate(state.issues):
+jayrah/ui/web/server.py:304:                if issue["key"] == key:
+jayrah/ui/web/server.py:305:                    state.issues[i] = updated_issue_data
+jayrah/ui/web/server.py:324:    """Get detailed statistics about the current board's issues"""
+jayrah/ui/web/server.py:325:    if not state.issues:
+jayrah/ui/web/server.py:327:            "total_issues": 0,
+jayrah/ui/web/server.py:328:            "issue_types": {},
+jayrah/ui/web/server.py:339:            "overdue_issues_count": 0,
+jayrah/ui/web/server.py:340:            "overdue_issues": [],
+jayrah/ui/web/server.py:341:            "stuck_issues_count": 0,
+jayrah/ui/web/server.py:342:            "stuck_issues": [],
+jayrah/ui/web/server.py:343:            "high_priority_issues_count": 0,
+jayrah/ui/web/server.py:344:            "high_priority_issues": [],
+jayrah/ui/web/server.py:345:            "blocked_issues_count": 0,
+jayrah/ui/web/server.py:346:            "blocked_issues": [],
+jayrah/ui/web/server.py:355:    issue_types = defaultdict(int)
+jayrah/ui/web/server.py:379:    overdue_issues = []
+jayrah/ui/web/server.py:380:    stuck_issues = []
+jayrah/ui/web/server.py:381:    high_priority_issues = []
+jayrah/ui/web/server.py:382:    blocked_issues = []
+jayrah/ui/web/server.py:384:    for issue in state.issues:
+jayrah/ui/web/server.py:385:        fields = issue.get("fields", {})
+jayrah/ui/web/server.py:387:        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+jayrah/ui/web/server.py:388:        issue_types[issue_type] += 1
+jayrah/ui/web/server.py:465:                    overdue_issues.append(
+jayrah/ui/web/server.py:467:                            "key": issue.get("key"),
+jayrah/ui/web/server.py:480:                    stuck_issues.append(
+jayrah/ui/web/server.py:482:                            "key": issue.get("key"),
+jayrah/ui/web/server.py:506:            high_priority_issues.append(
+jayrah/ui/web/server.py:508:                    "key": issue.get("key"),
+jayrah/ui/web/server.py:517:            blocked_issues.append(
+jayrah/ui/web/server.py:519:                    "key": issue.get("key"),
+jayrah/ui/web/server.py:533:        "total_issues": len(state.issues),
+jayrah/ui/web/server.py:534:        "issue_types": dict(
+jayrah/ui/web/server.py:535:            sorted(issue_types.items(), key=lambda x: x[1], reverse=True)
+jayrah/ui/web/server.py:553:        "overdue_issues_count": len(overdue_issues),
+jayrah/ui/web/server.py:554:        "overdue_issues": overdue_issues,
+jayrah/ui/web/server.py:555:        "stuck_issues_count": len(stuck_issues),
+jayrah/ui/web/server.py:556:        "stuck_issues": stuck_issues,
+jayrah/ui/web/server.py:557:        "high_priority_issues_count": len(high_priority_issues),
+jayrah/ui/web/server.py:558:        "high_priority_issues": high_priority_issues,
+jayrah/ui/web/server.py:559:        "blocked_issues_count": len(blocked_issues),
+jayrah/ui/web/server.py:560:        "blocked_issues": blocked_issues,
+jayrah/ui/web/server.py:566:@app.put("/api/issue/{key}/customfield")
+jayrah/ui/web/server.py:567:def update_issue_custom_field(
+jayrah/ui/web/server.py:570:    """Update a custom field for an issue"""
+jayrah/ui/web/server.py:600:        # Update the issue with the new custom field value
+jayrah/ui/web/server.py:601:        state.jayrah_obj.jira.update_issue(key, {field_id: value})
+jayrah/ui/web/server.py:605:            updated_issue_data = state.jayrah_obj.jira.get_issue(key)
+jayrah/ui/web/server.py:606:            for i, issue in enumerate(state.issues):
+jayrah/ui/web/server.py:607:                if issue["key"] == key:
+jayrah/ui/web/server.py:608:                    # Update the fields in the cached issue
+jayrah/ui/web/server.py:609:                    if "fields" not in state.issues[i]:
+jayrah/ui/web/server.py:610:                        state.issues[i]["fields"] = {}
+jayrah/ui/web/server.py:611:                    state.issues[i]["fields"][field_id] = value
+jayrah/ui/web/server.py:613:                    state.issues[i] = updated_issue_data
+jayrah/ui/shared_helpers.py:7:def get_row_data_for_issue(issue: dict) -> tuple:
+jayrah/ui/shared_helpers.py:8:    fields = issue["fields"]
+jayrah/ui/shared_helpers.py:10:    print(f"DEBUG: {issue['key']} priority field: {priority_field}")
+jayrah/ui/shared_helpers.py:11:    issue_type = fields["issuetype"]["name"]
+jayrah/ui/shared_helpers.py:12:    issue_type = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, (issue_type[:4],))[0]
+jayrah/ui/shared_helpers.py:13:    key = issue["key"]
+jayrah/ui/shared_helpers.py:26:        issue_type,
+jayrah/ui/shared_helpers.py:38:def filter_issues_by_text(issues: list, search_text: str) -> list:
+jayrah/ui/shared_helpers.py:39:    if not search_text.strip():
+jayrah/ui/shared_helpers.py:40:        return issues
+jayrah/ui/shared_helpers.py:41:    filtered_issues = []
+jayrah/ui/shared_helpers.py:42:    search_text = search_text.lower()
+jayrah/ui/shared_helpers.py:43:    for issue in issues:
+jayrah/ui/shared_helpers.py:44:        issue_key = issue["key"].lower()
+jayrah/ui/shared_helpers.py:45:        summary = issue["fields"]["summary"].lower()
+jayrah/ui/shared_helpers.py:47:        if assignee_field := issue["fields"].get("assignee"):
+jayrah/ui/shared_helpers.py:49:        reporter = utils.parse_email(issue["fields"].get("reporter", "")).lower()
+jayrah/ui/shared_helpers.py:50:        status = issue["fields"]["status"]["name"].lower()
+jayrah/ui/shared_helpers.py:52:            search_text in issue_key
+jayrah/ui/shared_helpers.py:53:            or search_text in summary
+jayrah/ui/shared_helpers.py:54:            or search_text in assignee
+jayrah/ui/shared_helpers.py:55:            or search_text in reporter
+jayrah/ui/shared_helpers.py:56:            or search_text in status
+jayrah/ui/shared_helpers.py:58:            filtered_issues.append(issue)
+jayrah/ui/shared_helpers.py:59:    return filtered_issues
+jayrah/ui/web/static/css/style.css:160:.search-toggle {
+jayrah/ui/web/static/css/style.css:176:.search-toggle:hover {
+jayrah/ui/web/static/css/style.css:181:.search-toggle:active {
+jayrah/ui/web/static/css/style.css:185:.search-toggle.active {
+jayrah/ui/web/static/css/style.css:190:.search-toggle img,
+jayrah/ui/web/static/css/style.css:379:.stats-issue-list-item {
+jayrah/ui/web/static/css/style.css:388:.stats-issue-list-item:last-child {
+jayrah/ui/web/static/css/style.css:392:.stats-issue-list-item .issue-key {
+jayrah/ui/web/static/css/style.css:400:.stats-issue-list-item .issue-key:hover {
+jayrah/ui/web/static/css/style.css:404:.stats-issue-list-item .issue-summary {
+jayrah/ui/web/static/css/style.css:501:.layout-horizontal .issues-panel {
+jayrah/ui/web/static/css/style.css:517:.layout-vertical .issues-panel {
+jayrah/ui/web/static/css/style.css:537:.view-details-only .issues-panel {
+jayrah/ui/web/static/css/style.css:541:.view-both .issues-panel,
+jayrah/ui/web/static/css/style.css:553:.view-list-only .issues-panel {
+jayrah/ui/web/static/css/style.css:591:.search-container {
+jayrah/ui/web/static/css/style.css:599:  animation: searchSlideDown 0.2s ease;
+jayrah/ui/web/static/css/style.css:602:.search-container.visible {
+jayrah/ui/web/static/css/style.css:606:@keyframes searchSlideDown {
+jayrah/ui/web/static/css/style.css:618:.search-input {
+jayrah/ui/web/static/css/style.css:627:.search-input:focus {
+jayrah/ui/web/static/css/style.css:647:.issues-panel {
+jayrah/ui/web/static/css/style.css:805:.issue-type {
+jayrah/ui/web/static/css/style.css:812:.issue-key {
+jayrah/ui/web/static/css/style.css:819:.issue-key:hover {
+jayrah/ui/web/static/css/style.css:823:.issue-summary {
+jayrah/ui/web/static/css/style.css:1157:.no-issues {
+jayrah/ui/web/static/css/style.css:1168:  .issues-panel {
+jayrah/ui/web/static/css/style.css:1188:  .view-both .issues-panel {
+jayrah/ui/web/static/css/style.css:1215:  .issue-summary {
+jayrah/ui/web/static/js/main.js:3:let jiraBaseUrl = null;
+jayrah/ui/web/static/js/main.js:107:  SEARCH_VISIBLE: "jayrah_search_visible",
+jayrah/ui/web/static/js/main.js:108:  SEARCH_QUERY: "jayrah_search_query",
+jayrah/ui/web/static/js/main.js:144:  const searchContainer = document.getElementById("search-container");
+jayrah/ui/web/static/js/main.js:145:  if (searchContainer) {
+jayrah/ui/web/static/js/main.js:148:      searchContainer.classList.contains("visible"),
+jayrah/ui/web/static/js/main.js:152:  const searchInput = document.getElementById("search");
+jayrah/ui/web/static/js/main.js:153:  if (searchInput && searchInput.value.trim()) {
+jayrah/ui/web/static/js/main.js:154:    setCookie(STATE_COOKIES.SEARCH_QUERY, searchInput.value.trim());
+jayrah/ui/web/static/js/main.js:179:  // Restore search visibility
+jayrah/ui/web/static/js/main.js:180:  const searchVisible = getCookie(STATE_COOKIES.SEARCH_VISIBLE);
+jayrah/ui/web/static/js/main.js:181:  if (searchVisible === "true") {
+jayrah/ui/web/static/js/main.js:183:      const searchContainer = document.getElementById("search-container");
+jayrah/ui/web/static/js/main.js:184:      if (searchContainer && !searchContainer.classList.contains("visible")) {
+jayrah/ui/web/static/js/main.js:185:        searchContainer.classList.add("visible");
+jayrah/ui/web/static/js/main.js:186:        const searchInput = document.getElementById("search");
+jayrah/ui/web/static/js/main.js:187:        if (searchInput) {
+jayrah/ui/web/static/js/main.js:188:          searchInput.focus();
+jayrah/ui/web/static/js/main.js:194:  // Restore search query
+jayrah/ui/web/static/js/main.js:198:      const searchInput = document.getElementById("search");
+jayrah/ui/web/static/js/main.js:199:      if (searchInput) {
+jayrah/ui/web/static/js/main.js:200:        searchInput.value = savedQuery;
+jayrah/ui/web/static/js/main.js:201:        // Trigger search with saved query
+jayrah/ui/web/static/js/main.js:202:        searchIssues();
+jayrah/ui/web/static/js/main.js:321:  const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:323:    (row) => !row.querySelector(".loading") && !row.querySelector(".no-issues"),
+jayrah/ui/web/static/js/main.js:344:    // Extract issue key from the row
+jayrah/ui/web/static/js/main.js:347:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:348:      selectRow(newRow, issueKey);
+jayrah/ui/web/static/js/main.js:379:    const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:380:    const firstRow = tbody.querySelector("tr:not(.loading):not(.no-issues)");
+jayrah/ui/web/static/js/main.js:384:        const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:385:        selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:393:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:394:      const jiraBaseUrl = getJiraBaseUrl();
+jayrah/ui/web/static/js/main.js:395:      if (jiraBaseUrl) {
+jayrah/ui/web/static/js/main.js:396:        const issueUrl = `${jiraBaseUrl}/browse/${issueKey}`;
+jayrah/ui/web/static/js/main.js:397:        window.open(issueUrl, "_blank");
+jayrah/ui/web/static/js/main.js:398:        showNotification(`Opened ${issueKey} in new tab`);
+jayrah/ui/web/static/js/main.js:404:    showNotification("No issue selected", "error");
+jayrah/ui/web/static/js/main.js:411:    const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:412:    const firstRow = tbody.querySelector("tr:not(.loading):not(.no-issues)");
+jayrah/ui/web/static/js/main.js:416:        const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:417:        selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:425:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:426:      const jiraBaseUrl = getJiraBaseUrl();
+jayrah/ui/web/static/js/main.js:427:      if (jiraBaseUrl) {
+jayrah/ui/web/static/js/main.js:428:        const issueUrl = `${jiraBaseUrl}/browse/${issueKey}`;
+jayrah/ui/web/static/js/main.js:430:          .writeText(issueUrl)
+jayrah/ui/web/static/js/main.js:432:            showNotification(`Copied ${issueKey} URL to clipboard`);
+jayrah/ui/web/static/js/main.js:435:            showNotification(`Failed to copy URL for ${issueKey}`, "error");
+jayrah/ui/web/static/js/main.js:438:        // Fallback: copy just the issue key
+jayrah/ui/web/static/js/main.js:440:          .writeText(issueKey)
+jayrah/ui/web/static/js/main.js:442:            showNotification(`Copied issue key ${issueKey} to clipboard`);
+jayrah/ui/web/static/js/main.js:445:            showNotification(`Failed to copy issue key ${issueKey}`, "error");
+jayrah/ui/web/static/js/main.js:450:    showNotification("No issue selected", "error");
+jayrah/ui/web/static/js/main.js:457:    const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:458:    const firstRow = tbody.querySelector("tr:not(.loading):not(.no-issues)");
+jayrah/ui/web/static/js/main.js:462:        const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:463:        selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:476:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:485:      editLabels(issueKey, currentLabels);
+jayrah/ui/web/static/js/main.js:489:      "No issue selected. Use j/k to navigate or click an issue.",
+jayrah/ui/web/static/js/main.js:544:                        <span style="color: #586069;">Move down in issue list</span>
+jayrah/ui/web/static/js/main.js:546:                        <span style="color: #586069;">Move up in issue list</span>
+jayrah/ui/web/static/js/main.js:548:                        <span style="color: #586069;">Jump down ~10 issues</span>
+jayrah/ui/web/static/js/main.js:550:                        <span style="color: #586069;">Jump up ~10 issues</span>
+jayrah/ui/web/static/js/main.js:552:                        <span style="color: #586069;">Go to first issue</span>
+jayrah/ui/web/static/js/main.js:554:                        <span style="color: #586069;">Go to last issue</span>
+jayrah/ui/web/static/js/main.js:574:                        <span style="color: #586069;">Open selected issue in new Jira tab</span>
+jayrah/ui/web/static/js/main.js:576:                        <span style="color: #586069;">Yank (copy) issue URL to clipboard</span>
+jayrah/ui/web/static/js/main.js:578:                        <span style="color: #586069;">Edit labels for selected issue</span>
+jayrah/ui/web/static/js/main.js:592:                        <span style="color: #586069;">Refresh issues and clear cache</span>
+jayrah/ui/web/static/js/main.js:594:                        <span style="color: #586069;">Toggle search bar</span>
+jayrah/ui/web/static/js/main.js:613:                        <li style="margin-bottom: 0.25rem;">Press '/' or click 🔍 to toggle the search bar</li>
+jayrah/ui/web/static/js/main.js:614:                        <li style="margin-bottom: 0.25rem;">Use the search box to filter issues by key, summary, assignee, or status</li>
+jayrah/ui/web/static/js/main.js:615:                        <li style="margin-bottom: 0.25rem;">Click on any issue to view its details</li>
+jayrah/ui/web/static/js/main.js:618:                        <li style="margin-bottom: 0.25rem;">Page Up/Down jump ~10 issues; Home/End go to first/last issue</li>
+jayrah/ui/web/static/js/main.js:620:                        <li style="margin-bottom: 0.25rem;">All shortcuts work except when typing in search box</li>
+jayrah/ui/web/static/js/main.js:648:function openIssueInTab(issueKey) {
+jayrah/ui/web/static/js/main.js:649:  const jiraBaseUrl = getJiraBaseUrl();
+jayrah/ui/web/static/js/main.js:650:  if (jiraBaseUrl) {
+jayrah/ui/web/static/js/main.js:651:    const issueUrl = `${jiraBaseUrl}/browse/${issueKey}`;
+jayrah/ui/web/static/js/main.js:652:    window.open(issueUrl, "_blank");
+jayrah/ui/web/static/js/main.js:653:    showNotification(`Opened ${issueKey} in new tab`);
+jayrah/ui/web/static/js/main.js:660:  return jiraBaseUrl;
+jayrah/ui/web/static/js/main.js:668:      jiraBaseUrl = config.jira_base_url;
+jayrah/ui/web/static/js/main.js:669:      window.jiraBaseUrl = jiraBaseUrl; // Ensure global for stats modal
+jayrah/ui/web/static/js/main.js:841:    const url = q ? `/api/issues?q=${encodeURIComponent(q)}` : "/api/issues";
+jayrah/ui/web/static/js/main.js:846:    console.error("Error fetching issues:", error);
+jayrah/ui/web/static/js/main.js:865:    // Get current search query if any
+jayrah/ui/web/static/js/main.js:866:    const searchInput = document.getElementById("search");
+jayrah/ui/web/static/js/main.js:867:    const query = searchInput ? searchInput.value.trim() : "";
+jayrah/ui/web/static/js/main.js:869:    // Fetch issues with current search query (will get fresh data after cache clear)
+jayrah/ui/web/static/js/main.js:878:    // Auto-select first issue after refresh if any exist
+jayrah/ui/web/static/js/main.js:881:        const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:882:        const firstRow = tbody.querySelector("tr[data-issue-key]");
+jayrah/ui/web/static/js/main.js:884:          const issueKey = firstRow.dataset.issueKey;
+jayrah/ui/web/static/js/main.js:885:          selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:886:          console.log("Auto-selected first issue after refresh:", issueKey);
+jayrah/ui/web/static/js/main.js:893:    console.error("Error refreshing issues:", error);
+jayrah/ui/web/static/js/main.js:899:    const res = await fetch(`/api/issue/${key}`);
+jayrah/ui/web/static/js/main.js:904:    console.error("Error fetching issue detail:", error);
+jayrah/ui/web/static/js/main.js:905:    return { error: "Failed to load issue details" };
+jayrah/ui/web/static/js/main.js:914:  const issue = data.issue || data; // Handle both old and new format
+jayrah/ui/web/static/js/main.js:916:  const fields = issue.fields || {};
+jayrah/ui/web/static/js/main.js:917:  const key = issue.key || "Unknown";
+jayrah/ui/web/static/js/main.js:926:  const issueType = fields.issuetype?.name || "Unknown";
+jayrah/ui/web/static/js/main.js:939:                    <h3><div class="detail-label">Ticket <a href="#" class="issue-key" onclick="openIssueInTab('${key}'); return false;">${key}</a></div></h3>
+jayrah/ui/web/static/js/main.js:942:                        <div class="detail-value">${issueType}</div>
+jayrah/ui/web/static/js/main.js:1166:                <div class="raw-json" id="raw-json">${JSON.stringify(issue, null, 2)}</div>
+jayrah/ui/web/static/js/main.js:1239:function renderTable(issues) {
+jayrah/ui/web/static/js/main.js:1240:  const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1242:  if (issues.length === 0) {
+jayrah/ui/web/static/js/main.js:1244:      '<tr><td colspan="9" class="no-issues">No issues found</td></tr>';
+jayrah/ui/web/static/js/main.js:1248:  tbody.innerHTML = issues
+jayrah/ui/web/static/js/main.js:1251:                <tr onclick="selectRow(this, '${row[1]}')" data-issue-key="${row[1]}">
+jayrah/ui/web/static/js/main.js:1252:                    <td><span class="issue-type">${row[0]}</span></td>
+jayrah/ui/web/static/js/main.js:1253:                    <td><a href="#" class="issue-key">${row[1]}</a></td>
+jayrah/ui/web/static/js/main.js:1254:                    <td><div class="issue-summary" title="${row[2]}">${row[2]}</div></td>
+jayrah/ui/web/static/js/main.js:1276:  updateStats(issues.length);
+jayrah/ui/web/static/js/main.js:1281:    `${count} issue${count !== 1 ? "s" : ""}`;
+jayrah/ui/web/static/js/main.js:1298:  // Save state when issue is selected
+jayrah/ui/web/static/js/main.js:1303:  // Store current issue key and details for custom field editing
+jayrah/ui/web/static/js/main.js:1339:let searchTimeout;
+jayrah/ui/web/static/js/main.js:1340:document.getElementById("search").addEventListener("input", (e) => {
+jayrah/ui/web/static/js/main.js:1341:  clearTimeout(searchTimeout);
+jayrah/ui/web/static/js/main.js:1342:  searchTimeout = setTimeout(async () => {
+jayrah/ui/web/static/js/main.js:1343:    const issues = await fetchIssues(e.target.value);
+jayrah/ui/web/static/js/main.js:1344:    renderTable(issues);
+jayrah/ui/web/static/js/main.js:1345:    closeDetail(); // Close detail panel when searching
+jayrah/ui/web/static/js/main.js:1347:    // Auto-select first issue in search results if any exist
+jayrah/ui/web/static/js/main.js:1349:      if (issues.length > 0) {
+jayrah/ui/web/static/js/main.js:1350:        const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1351:        const firstRow = tbody.querySelector("tr[data-issue-key]");
+jayrah/ui/web/static/js/main.js:1353:          const issueKey = firstRow.dataset.issueKey;
+jayrah/ui/web/static/js/main.js:1354:          selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:1355:          console.log("Auto-selected first search result:", issueKey);
+jayrah/ui/web/static/js/main.js:1360:    // Save state when search query changes
+jayrah/ui/web/static/js/main.js:1367:  const searchContainer = document.querySelector(".search-container");
+jayrah/ui/web/static/js/main.js:1368:  const searchToggle = document.getElementById("search-toggle");
+jayrah/ui/web/static/js/main.js:1369:  const searchInput = document.getElementById("search");
+jayrah/ui/web/static/js/main.js:1371:  if (searchContainer.classList.contains("visible")) {
+jayrah/ui/web/static/js/main.js:1372:    // Hide search
+jayrah/ui/web/static/js/main.js:1373:    searchContainer.classList.remove("visible");
+jayrah/ui/web/static/js/main.js:1374:    searchToggle.classList.remove("active");
+jayrah/ui/web/static/js/main.js:1375:    searchToggle.title = "Show search (Press /)";
+jayrah/ui/web/static/js/main.js:1377:    // Clear search if hiding
+jayrah/ui/web/static/js/main.js:1378:    if (searchInput.value.trim()) {
+jayrah/ui/web/static/js/main.js:1379:      searchInput.value = "";
+jayrah/ui/web/static/js/main.js:1380:      // Trigger search to show all issues
+jayrah/ui/web/static/js/main.js:1381:      fetchIssues().then((issues) => renderTable(issues));
+jayrah/ui/web/static/js/main.js:1385:    // Show search
+jayrah/ui/web/static/js/main.js:1386:    searchContainer.classList.add("visible");
+jayrah/ui/web/static/js/main.js:1387:    searchToggle.classList.add("active");
+jayrah/ui/web/static/js/main.js:1388:    searchToggle.title = "Hide search (Press /)";
+jayrah/ui/web/static/js/main.js:1390:    // Focus on search input after animation
+jayrah/ui/web/static/js/main.js:1392:      searchInput.focus();
+jayrah/ui/web/static/js/main.js:1396:  // Save state when search visibility changes
+jayrah/ui/web/static/js/main.js:1408:    // Close help overlay first, then stats modal, then board modal, then custom field modal, then search, then detail panel
+jayrah/ui/web/static/js/main.js:1413:    const searchContainer = document.querySelector(".search-container");
+jayrah/ui/web/static/js/main.js:1423:      searchContainer &&
+jayrah/ui/web/static/js/main.js:1424:      searchContainer.classList.contains("visible")
+jayrah/ui/web/static/js/main.js:1516:  .getElementById("search-toggle")
+jayrah/ui/web/static/js/main.js:1710:    // Reload issues
+jayrah/ui/web/static/js/main.js:1719:      `✅ Switched to ${boardName} (${result.issue_count} issues)`,
+jayrah/ui/web/static/js/main.js:1751:  // Auto-select first issue if no issue is currently selected and issues exist
+jayrah/ui/web/static/js/main.js:1754:      const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1755:      const firstRow = tbody.querySelector("tr[data-issue-key]");
+jayrah/ui/web/static/js/main.js:1757:        const issueKey = firstRow.dataset.issueKey;
+jayrah/ui/web/static/js/main.js:1758:        selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:1759:        console.log("Auto-selected first issue:", issueKey);
+jayrah/ui/web/static/js/main.js:1769:  const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1770:  const firstRow = tbody.querySelector("tr:not(.loading):not(.no-issues)");
+jayrah/ui/web/static/js/main.js:1774:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:1775:      selectRow(firstRow, issueKey);
+jayrah/ui/web/static/js/main.js:1782:  const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1784:    (row) => !row.querySelector(".loading") && !row.querySelector(".no-issues"),
+jayrah/ui/web/static/js/main.js:1790:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:1791:      selectRow(lastRow, issueKey);
+jayrah/ui/web/static/js/main.js:1798:  const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1800:    (row) => !row.querySelector(".loading") && !row.querySelector(".no-issues"),
+jayrah/ui/web/static/js/main.js:1823:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:1824:      selectRow(newRow, issueKey);
+jayrah/ui/web/static/js/main.js:1831:  const tbody = document.getElementById("issues-tbody");
+jayrah/ui/web/static/js/main.js:1833:    (row) => !row.querySelector(".loading") && !row.querySelector(".no-issues"),
+jayrah/ui/web/static/js/main.js:1856:      const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:1857:      selectRow(newRow, issueKey);
+jayrah/ui/web/static/js/main.js:1889:async function editLabels(issueKey, currentLabels) {
+jayrah/ui/web/static/js/main.js:1890:  currentEditingIssue = issueKey;
+jayrah/ui/web/static/js/main.js:1899:    showLabelEditModal(issueKey, currentLabels, allLabels);
+jayrah/ui/web/static/js/main.js:1906:function showLabelEditModal(issueKey, currentLabels, allLabels) {
+jayrah/ui/web/static/js/main.js:1918:                        <h3>Edit Labels - ${issueKey}</h3>
+jayrah/ui/web/static/js/main.js:1922:                        <label for="label-select">Select Labels (type to search, enter to create new):</label>
+jayrah/ui/web/static/js/main.js:1923:                        <select id="label-select" multiple placeholder="Type to search or add labels...">
+jayrah/ui/web/static/js/main.js:1945:    searchField: ["text"],
+jayrah/ui/web/static/js/main.js:2010:    const response = await fetch(`/api/issue/${currentEditingIssue}/labels`, {
+jayrah/ui/web/static/js/main.js:2025:    // Refresh the issue detail to show updated labels
+jayrah/ui/web/static/js/main.js:2026:    const issueDetail = await fetchIssueDetail(currentEditingIssue);
+jayrah/ui/web/static/js/main.js:2027:    showDetail(currentEditingIssue, issueDetail);
+jayrah/ui/web/static/js/main.js:2040:      "No issue selected. Use j/k to navigate or click an issue.",
+jayrah/ui/web/static/js/main.js:2047:  const issueKey = keyCell.textContent.trim();
+jayrah/ui/web/static/js/main.js:2050:  fetch(`/api/issue/${issueKey}/transitions`)
+jayrah/ui/web/static/js/main.js:2053:      showTransitionModal(issueKey, data.transitions || []);
+jayrah/ui/web/static/js/main.js:2060:function showTransitionModal(issueKey, transitions) {
+jayrah/ui/web/static/js/main.js:2081:                <h3 style="margin-top:0;">Select Transition for <span style="color:#0366d6;">${issueKey}</span></h3>
+jayrah/ui/web/static/js/main.js:2082:                <input id="transition-search" type="text" placeholder="Type to filter..." style="width:100%;margin-bottom:1rem;padding:0.5rem;">
+jayrah/ui/web/static/js/main.js:2114:  const searchInput = content.querySelector("#transition-search");
+jayrah/ui/web/static/js/main.js:2116:  searchInput.addEventListener("input", function () {
+jayrah/ui/web/static/js/main.js:2139:  searchInput.addEventListener("keydown", function (e) {
+jayrah/ui/web/static/js/main.js:2174:      applyTransition(issueKey, transitionId);
+jayrah/ui/web/static/js/main.js:2192:  searchInput.focus();
+jayrah/ui/web/static/js/main.js:2195:function applyTransition(issueKey, transitionId) {
+jayrah/ui/web/static/js/main.js:2196:  fetch(`/api/issue/${issueKey}/transitions`, {
+jayrah/ui/web/static/js/main.js:2207:      // Refresh the issue detail to show updated status
+jayrah/ui/web/static/js/main.js:2208:      if (selectedRow && selectedRow.dataset.issueKey === issueKey) {
+jayrah/ui/web/static/js/main.js:2209:        fetchIssueDetail(issueKey).then((detail) => {
+jayrah/ui/web/static/js/main.js:2210:          showDetail(issueKey, detail);
+jayrah/ui/web/static/js/main.js:2213:      // Optionally refresh the issues list to show updated status
+jayrah/ui/web/static/js/main.js:2222:  const issuesPanel = document.querySelector(".issues-panel");
+jayrah/ui/web/static/js/main.js:2226:  if (!resizer || !issuesPanel || !detailPanel || !mainContent) return;
+jayrah/ui/web/static/js/main.js:2235:  const PANEL_WIDTH_KEY = "jayrah-issues-panel-width";
+jayrah/ui/web/static/js/main.js:2236:  const PANEL_HEIGHT_KEY = "jayrah-issues-panel-height";
+jayrah/ui/web/static/js/main.js:2246:      issuesPanel.style.width = `${width}%`;
+jayrah/ui/web/static/js/main.js:2254:      issuesPanel.style.height = `${height}%`;
+jayrah/ui/web/static/js/main.js:2265:    startLeftWidth = issuesPanel.offsetWidth;
+jayrah/ui/web/static/js/main.js:2266:    startTopHeight = issuesPanel.offsetHeight;
+jayrah/ui/web/static/js/main.js:2301:        issuesPanel.style.height = `${topPercentage}%`;
+jayrah/ui/web/static/js/main.js:2323:        issuesPanel.style.width = `${leftPercentage}%`;
+jayrah/ui/web/static/js/main.js:2349:      issuesPanel.style.height = "50%";
+jayrah/ui/web/static/js/main.js:2353:      issuesPanel.style.width = "50%";
+jayrah/ui/web/static/js/main.js:2361:  const issuesPanel = document.querySelector(".issues-panel");
+jayrah/ui/web/static/js/main.js:2363:  if (!issuesPanel || !detailPanel) return;
+jayrah/ui/web/static/js/main.js:2371:    issuesPanel.style.width = "";
+jayrah/ui/web/static/js/main.js:2372:    issuesPanel.style.height = "50%";
+jayrah/ui/web/static/js/main.js:2377:    issuesPanel.style.height = "";
+jayrah/ui/web/static/js/main.js:2378:    issuesPanel.style.width = "50%";
+jayrah/ui/web/static/js/main.js:2431:    total_issues,
+jayrah/ui/web/static/js/main.js:2432:    issue_types,
+jayrah/ui/web/static/js/main.js:2443:    overdue_issues_count = 0,
+jayrah/ui/web/static/js/main.js:2444:    overdue_issues = [],
+jayrah/ui/web/static/js/main.js:2445:    stuck_issues_count = 0,
+jayrah/ui/web/static/js/main.js:2446:    stuck_issues = [],
+jayrah/ui/web/static/js/main.js:2447:    high_priority_issues_count = 0,
+jayrah/ui/web/static/js/main.js:2448:    high_priority_issues = [],
+jayrah/ui/web/static/js/main.js:2449:    blocked_issues_count = 0,
+jayrah/ui/web/static/js/main.js:2450:    blocked_issues = [],
+jayrah/ui/web/static/js/main.js:2455:  // Helper to render actionable issue lists
+jayrah/ui/web/static/js/main.js:2456:  function renderIssueList(title, emoji, issues) {
+jayrah/ui/web/static/js/main.js:2457:    if (!issues || issues.length === 0) return '';
+jayrah/ui/web/static/js/main.js:2462:          ${issues
+jayrah/ui/web/static/js/main.js:2463:        .map((issue) => {
+jayrah/ui/web/static/js/main.js:2464:          const key = issue.key;
+jayrah/ui/web/static/js/main.js:2465:          const summary = issue.summary || '';
+jayrah/ui/web/static/js/main.js:2466:          let keyHtml = `<span class='issue-key'>${key}</span>`;
+jayrah/ui/web/static/js/main.js:2467:          if (window.jiraBaseUrl) {
+jayrah/ui/web/static/js/main.js:2468:            keyHtml = `<a href='${window.jiraBaseUrl}/browse/${key}' class='issue-key' target='_blank' rel='noopener'>${key}</a>`;
+jayrah/ui/web/static/js/main.js:2470:          return `<li class='stats-issue-list-item'>${keyHtml}<div class='issue-summary'>${summary}</div></li>`;
+jayrah/ui/web/static/js/main.js:2496:      ${renderIssueList('Overdue Issues', '⏰', overdue_issues)}
+jayrah/ui/web/static/js/main.js:2497:      ${renderIssueList('Stuck Issues', '🐢', stuck_issues)}
+jayrah/ui/web/static/js/main.js:2498:      ${renderIssueList('High Priority Issues', '🚨', high_priority_issues)}
+jayrah/ui/web/static/js/main.js:2499:      ${renderIssueList('Blocked Issues', '⛔', blocked_issues)}
+jayrah/ui/web/static/js/main.js:2509:          <div class="highlight-number">${total_issues}</div>
+jayrah/ui/web/static/js/main.js:2566:      ${renderStatsSection("Issue Types", "🎯", issue_types)}
+jayrah/ui/web/static/js/main.js:2657:  // Store current issue key for the API call
+jayrah/ui/web/static/js/main.js:2658:  const issueKey = window.currentIssueKey;
+jayrah/ui/web/static/js/main.js:2659:  if (!issueKey) {
+jayrah/ui/web/static/js/main.js:2660:    console.error("No current issue key available");
+jayrah/ui/web/static/js/main.js:2669:    issueKey,
+jayrah/ui/web/static/js/main.js:2678:  issueKey,
+jayrah/ui/web/static/js/main.js:2701:              <button type="button" class="custom-field-save" onclick="saveCustomField('${fieldId}', '${issueKey}')">Save</button>
+jayrah/ui/web/static/js/main.js:2768:async function saveCustomField(fieldId, issueKey) {
+jayrah/ui/web/static/js/main.js:2802:    const response = await fetch(`/api/issue/${issueKey}/customfield`, {
+jayrah/ui/web/static/js/main.js:2827:    // Refresh the current issue to show the updated value
+jayrah/ui/tui/views.py:1:"""UI views and screens for the issue browser."""
+jayrah/ui/tui/views.py:13:from ...utils import adf, issue_view
+jayrah/ui/tui/views.py:19:    """Modal screen for viewing comments on an issue."""
+jayrah/ui/tui/views.py:66:    def __init__(self, parent, issue_key: str, config: dict):
+jayrah/ui/tui/views.py:68:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:75:            yield Label(f"💬 Comments for {self.issue_key}", id="comments-title")
+jayrah/ui/tui/views.py:84:        """Load and format comments for the issue."""
+jayrah/ui/tui/views.py:86:            # Get issue with comment field expanded
+jayrah/ui/tui/views.py:87:            issue_data = self._parent.jayrah_obj.jira.get_issue(
+jayrah/ui/tui/views.py:88:                self.issue_key, fields=["comment", "summary", "key"], use_cache=False
+jayrah/ui/tui/views.py:92:            fields = issue_data.get("fields", {})
+jayrah/ui/tui/views.py:98:            comments_content = self._format_comments(issue_data)
+jayrah/ui/tui/views.py:129:    def _format_comments(self, issue_data: dict) -> str:
+jayrah/ui/tui/views.py:131:        fields = issue_data.get("fields", {})
+jayrah/ui/tui/views.py:134:            return "No comments found for this issue."
+jayrah/ui/tui/views.py:140:        content = [f"# Comments for {self.issue_key}"]
+jayrah/ui/tui/views.py:186:                import jira2markdown
+jayrah/ui/tui/views.py:189:                    jira2markdown.convert(comment_body)
+jayrah/ui/tui/views.py:194:                # Fallback if jira2markdown is not available
+jayrah/ui/tui/views.py:243:        # Create a fake issue_data structure for _format_comments
+jayrah/ui/tui/views.py:244:        issue_data = {
+jayrah/ui/tui/views.py:251:        comments_content = self._format_comments(issue_data)
+jayrah/ui/tui/views.py:272:        """Open modal to add a new comment to the issue."""
+jayrah/ui/tui/views.py:276:                self.issue_key,
+jayrah/ui/tui/views.py:288:    """Modal screen for adding a comment to an issue."""
+jayrah/ui/tui/views.py:329:    def __init__(self, parent, issue_key: str, config: dict, on_comment_added=None):
+jayrah/ui/tui/views.py:331:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:337:            yield Label(f"✍️ Add Comment to {self.issue_key}", id="comment-title")
+jayrah/ui/tui/views.py:346:        """Add the comment to the issue."""
+jayrah/ui/tui/views.py:357:            self._parent.jayrah_obj.jira.add_comment(self.issue_key, comment_text)
+jayrah/ui/tui/views.py:359:            self._parent.notify(f"✅ Comment added to {self.issue_key}")
+jayrah/ui/tui/views.py:426:    """Panel showing detailed information about the selected issue using Markdown."""
+jayrah/ui/tui/views.py:460:            f"Loading issue {self.ticket}…"
+jayrah/ui/tui/views.py:462:            else "Select an issue to view details"
+jayrah/ui/tui/views.py:468:    def update_issue(
+jayrah/ui/tui/views.py:479:            markdown_widget.update("Select an issue to view details")
+jayrah/ui/tui/views.py:486:            lambda: self._fetch_and_update_issue(ticket, self.config, use_cache),
+jayrah/ui/tui/views.py:491:    def _fetch_and_update_issue(
+jayrah/ui/tui/views.py:501:                issue_data = self.jayrah_obj.jira.get_issue(
+jayrah/ui/tui/views.py:504:                header_content, markdown_content = issue_view.build_issue(
+jayrah/ui/tui/views.py:505:                    issue_data, config, 0
+jayrah/ui/tui/views.py:518:            error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{str(e)}\n```\n\nPlease check the ticket ID and your connection."
+jayrah/ui/tui/views.py:522:            self.app.log.error(f"Failed to load or build issue {ticket}: {e}")
+jayrah/ui/tui/views.py:531:            self.update_issue(self.ticket, self.config)
+jayrah/ui/tui/views.py:535:    """Modal screen for editing issue labels."""
+jayrah/ui/tui/views.py:581:    def __init__(self, parent, issue_key: str, current_labels: list, config: dict):
+jayrah/ui/tui/views.py:583:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:591:        all_labels = self._parent.jayrah_obj.jira.get_labels()
+jayrah/ui/tui/views.py:602:            yield Label(f"Edit Labels for {self.issue_key}", id="labels-title")
+jayrah/ui/tui/views.py:631:        # Update the issue with new labels
+jayrah/ui/tui/views.py:633:            self._parent.jayrah_obj.jira.update_issue(
+jayrah/ui/tui/views.py:634:                self.issue_key, {"labels": new_labels}
+jayrah/ui/tui/views.py:637:            # Update the issue cache to reflect changes
+jayrah/ui/tui/views.py:639:            if detail_panel.ticket == self.issue_key:
+jayrah/ui/tui/views.py:640:                detail_panel.update_issue(
+jayrah/ui/tui/views.py:641:                    self.issue_key, self._parent.config, use_cache=False
+jayrah/ui/tui/views.py:655:    """Modal screen for editing issue components."""
+jayrah/ui/tui/views.py:701:    def __init__(self, parent, issue_key: str, current_components: list, config: dict):
+jayrah/ui/tui/views.py:703:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:713:        all_components = self._parent.jayrah_obj.jira.get_components()
+jayrah/ui/tui/views.py:716:            yield Label(f"Edit Components for {self.issue_key}", id="components-title")
+jayrah/ui/tui/views.py:747:        # Update the issue with new components
+jayrah/ui/tui/views.py:751:            self._parent.jayrah_obj.jira.update_issue(
+jayrah/ui/tui/views.py:752:                self.issue_key, {"components": components_data}
+jayrah/ui/tui/views.py:755:            # Update the issue cache to reflect changes
+jayrah/ui/tui/views.py:757:            if detail_panel.ticket == self.issue_key:
+jayrah/ui/tui/views.py:758:                detail_panel.update_issue(
+jayrah/ui/tui/views.py:759:                    self.issue_key, self._parent.config, use_cache=False
+jayrah/ui/tui/views.py:775:    """Modal screen for fuzzy filtering issues."""
+jayrah/ui/tui/views.py:818:                placeholder="Search in issues (fuzzy matching across all fields)",
+jayrah/ui/tui/views.py:822:            yield Label("Press Enter to search, Escape to cancel", id="filter-help")
+jayrah/ui/tui/views.py:915:    """Modal screen for selecting a transition to apply to an issue."""
+jayrah/ui/tui/views.py:955:    def __init__(self, parent, issue_key: str, config: dict):
+jayrah/ui/tui/views.py:958:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:964:                f"Select Transition for {self.issue_key}", id="transition-title"
+jayrah/ui/tui/views.py:970:            # Get available transitions for the issue
+jayrah/ui/tui/views.py:972:                transitions_data = self._parent.jayrah_obj.jira.get_transitions(
+jayrah/ui/tui/views.py:973:                    self.issue_key
+jayrah/ui/tui/views.py:1033:            transitions_data = self._parent.jayrah_obj.jira.get_transitions(
+jayrah/ui/tui/views.py:1034:                self.issue_key
+jayrah/ui/tui/views.py:1050:            self._parent.jayrah_obj.jira.transition_issue(
+jayrah/ui/tui/views.py:1051:                self.issue_key, self.selected_transition_id
+jayrah/ui/tui/views.py:1054:            # Update the issue cache to reflect changes
+jayrah/ui/tui/views.py:1056:            if detail_panel.ticket == self.issue_key:
+jayrah/ui/tui/views.py:1057:                detail_panel.update_issue(
+jayrah/ui/tui/views.py:1058:                    self.issue_key, self._parent.config, use_cache=False
+jayrah/ui/tui/views.py:1061:            # Reload the issues table to show updated status
+jayrah/ui/tui/views.py:1066:                f"✅ Issue {self.issue_key} transitioned to '{to_status}' via '{transition_name}'"
+jayrah/ui/tui/views.py:1116:    def __init__(self, parent, issue_key: str, config: dict):
+jayrah/ui/tui/views.py:1119:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:1125:            yield Label(f"Edit Issue {self.issue_key}", id="edit-title")
+jayrah/ui/tui/views.py:1131:            table.add_row("title", "Edit issue title/summary", key="title")
+jayrah/ui/tui/views.py:1132:            table.add_row("description", "Edit issue description", key="description")
+jayrah/ui/tui/views.py:1166:                # Get current issue data for title editing
+jayrah/ui/tui/views.py:1167:                issue_data = self._parent.jayrah_obj.jira.get_issue(self.issue_key)
+jayrah/ui/tui/views.py:1168:                current_title = issue_data.get("fields", {}).get("summary", "")
+jayrah/ui/tui/views.py:1177:                        self.issue_key,
+jayrah/ui/tui/views.py:1183:                # Get current issue data for description editing
+jayrah/ui/tui/views.py:1184:                issue_data = self._parent.jayrah_obj.jira.get_issue(self.issue_key)
+jayrah/ui/tui/views.py:1185:                current_description = issue_data.get("fields", {}).get(
+jayrah/ui/tui/views.py:1195:                        self.issue_key,
+jayrah/ui/tui/views.py:1203:                issue_data = self._parent.jayrah_obj.jira.get_issue(self.issue_key)
+jayrah/ui/tui/views.py:1204:                current_value = issue_data.get("fields", {}).get(field_id, "")
+jayrah/ui/tui/views.py:1209:                        self.issue_key,
+jayrah/ui/tui/views.py:1225:    """Modal screen for editing issue title/summary."""
+jayrah/ui/tui/views.py:1271:    def __init__(self, parent, issue_key: str, current_title: str, config: dict):
+jayrah/ui/tui/views.py:1274:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:1279:            yield Label(f"Edit Title for {self.issue_key}", id="title-title")
+jayrah/ui/tui/views.py:1310:        # Update the issue with new title
+jayrah/ui/tui/views.py:1312:            self._parent.jayrah_obj.jira.update_issue(
+jayrah/ui/tui/views.py:1313:                self.issue_key, {"summary": title_input}
+jayrah/ui/tui/views.py:1316:            # Update the issue cache to reflect changes
+jayrah/ui/tui/views.py:1318:            if detail_panel.ticket == self.issue_key:
+jayrah/ui/tui/views.py:1319:                detail_panel.update_issue(
+jayrah/ui/tui/views.py:1320:                    self.issue_key, self._parent.config, use_cache=False
+jayrah/ui/tui/views.py:1323:            # Reload the issues table to show updated title
+jayrah/ui/tui/views.py:1327:            self._parent.notify(f"✅ Title updated for {self.issue_key}")
+jayrah/ui/tui/views.py:1336:    """Modal screen for editing issue description."""
+jayrah/ui/tui/views.py:1383:    def __init__(self, parent, issue_key: str, current_description, config: dict):
+jayrah/ui/tui/views.py:1386:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:1405:                f"Edit Description for {self.issue_key}", id="description-title"
+jayrah/ui/tui/views.py:1449:        # Update the issue with new description
+jayrah/ui/tui/views.py:1451:            self._parent.jayrah_obj.jira.update_issue(
+jayrah/ui/tui/views.py:1452:                self.issue_key, {"description": new_description}
+jayrah/ui/tui/views.py:1455:            # Update the issue cache to reflect changes
+jayrah/ui/tui/views.py:1457:            if detail_panel.ticket == self.issue_key:
+jayrah/ui/tui/views.py:1458:                detail_panel.update_issue(
+jayrah/ui/tui/views.py:1459:                    self.issue_key, self._parent.config, use_cache=False
+jayrah/ui/tui/views.py:1462:            self._parent.notify(f"✅ Description updated for {self.issue_key}")
+jayrah/ui/tui/views.py:1533:                "Add/edit labels for the selected issue",
+jayrah/ui/tui/views.py:1539:                "Edit components for the selected issue",
+jayrah/ui/tui/views.py:1545:                "View comments for the selected issue",
+jayrah/ui/tui/views.py:1551:                "Change status of the selected issue",
+jayrah/ui/tui/views.py:1552:                key="transition_issue",
+jayrah/ui/tui/views.py:1557:                "Edit title or description of the selected issue",
+jayrah/ui/tui/views.py:1558:                key="edit_issue",
+jayrah/ui/tui/views.py:1561:                "f", "Filter", "Apply fuzzy filter to search issues", key="filter"
+jayrah/ui/tui/views.py:1599:        elif self.selected_action == "transition_issue":
+jayrah/ui/tui/views.py:1600:            self._parent.action_transition_issue()
+jayrah/ui/tui/views.py:1601:        elif self.selected_action == "edit_issue":
+jayrah/ui/tui/views.py:1602:            self._parent.action_edit_issue()
+jayrah/ui/tui/views.py:1625:        self.selected_action = "transition_issue"
+jayrah/ui/tui/views.py:1630:        self.selected_action = "edit_issue"
+jayrah/ui/tui/views.py:1688:        self, parent, issue_key: str, field_id: str, current_value: str, config: dict
+jayrah/ui/tui/views.py:1692:        self.issue_key = issue_key
+jayrah/ui/tui/views.py:1716:                f"Update {self.field_id} for {self.issue_key}", id="customfield-title"
+jayrah/ui/tui/views.py:1769:            self._parent.jayrah_obj.jira.update_issue(
+jayrah/ui/tui/views.py:1770:                self.issue_key, {self.field_id: value}
+jayrah/ui/tui/views.py:1773:            if detail_panel.ticket == self.issue_key:
+jayrah/ui/tui/views.py:1774:                detail_panel.update_issue(
+jayrah/ui/tui/views.py:1775:                    self.issue_key, self._parent.config, use_cache=False
+jayrah/ui/tui/views.py:1778:            self._parent.notify(f"✅ Updated {self.field_id} for {self.issue_key}")
+jayrah/ui/web/index.html:39:                <button class="search-toggle" id="search-toggle" title="Toggle search (Press /)">
+jayrah/ui/web/index.html:46:                <button class="refresh-button" id="refresh-button" title="Refresh issues and clear cache (Press R)">
+jayrah/ui/web/index.html:91:        <div class="search-container">
+jayrah/ui/web/index.html:92:            <input type="text" id="search" class="search-input"
+jayrah/ui/web/index.html:93:                placeholder="Search issues by key, summary, assignee, status..." />
+jayrah/ui/web/index.html:98:                <div class="issues-panel">
+jayrah/ui/web/index.html:114:                            <tbody id="issues-tbody">
+jayrah/ui/web/index.html:116:                                    <td colspan="8" class="loading">Loading issues...</td>
+jayrah/ui/web/index.html:127:                        📋 Select an issue to view details
+jayrah/ui/tui/base.py:20:    """Base class for modal screens in the issue browser."""
+jayrah/ui/tui/enhanced_widgets.py:79:        word_match = re.search(r"\S+\s*$", text_before)
+jayrah/ui/tui/enhanced_widgets.py:95:        match = re.search(r"\s*\S+", text_after)
+jayrah/ui/tui/enhanced_widgets.py:117:        word_match = re.search(r"\S+\s*$", text_before)
+jayrah/ui/tui/enhanced_widgets.py:260:        word_match = re.search(r"\S+\s*$", text_before)
+jayrah/ui/tui/enhanced_widgets.py:284:        match = re.search(r"\s*\S+", text_after)
+jayrah/ui/tui/enhanced_widgets.py:310:        word_match = re.search(r"\S+\s*$", text_before)
+jayrah/ui/tui/__init__.py:1:"""TUI components for the issue browser."""
+jayrah/ui/tui/__init__.py:19:from .helpers import get_row_data_for_issue, filter_issues_by_text
+jayrah/ui/tui/__init__.py:38:    "get_row_data_for_issue",
+jayrah/ui/tui/__init__.py:39:    "filter_issues_by_text",
+jayrah/ui/tui/helpers.py:1:"""Helper functions and utilities for the issue browser."""
+jayrah/ui/tui/helpers.py:3:from jayrah.ui.shared_helpers import filter_issues_by_text, get_row_data_for_issue
+jayrah/ui/tui/helpers.py:5:__all__ = ["filter_issues_by_text", "get_row_data_for_issue"]
+jayrah/ui/tui/actions.py:2:"""Action handlers for the issue browser application."""
+jayrah/ui/tui/actions.py:26:    Mixin class containing all action handlers for the issue browser.
+jayrah/ui/tui/actions.py:30:    - selected_issue, jayrah_obj, config, verbose, jql, order_by, issues (app-specific)
+jayrah/ui/tui/actions.py:35:    jql: str = ""  # JQL query for fetching issues
+jayrah/ui/tui/actions.py:36:    order_by: str = ""  # Order by clause for fetching issues
+jayrah/ui/tui/actions.py:37:    issues: list = []  # List of issues fetched from JIRA
+jayrah/ui/tui/actions.py:38:    selected_issue: str | None = None  # Currently selected issue
+jayrah/ui/tui/actions.py:41:        """Reload issues asynchronously with loading state."""
+jayrah/ui/tui/actions.py:43:        cast(Any, self).notify("🔄 Reloading issues...")
+jayrah/ui/tui/actions.py:48:            lambda: self._reload_issues(),
+jayrah/ui/tui/actions.py:54:        """Open modal to edit labels for the selected issue."""
+jayrah/ui/tui/actions.py:55:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:56:            cast(Any, self).notify("No issue selected", severity="warning")
+jayrah/ui/tui/actions.py:59:        # Get the current issue data to retrieve existing labels
+jayrah/ui/tui/actions.py:61:            issue_data = cast(Any, self).jayrah_obj.jira.get_issue(
+jayrah/ui/tui/actions.py:62:                cast(Any, self).selected_issue
+jayrah/ui/tui/actions.py:64:            current_labels = issue_data.get("fields", {}).get("labels", [])
+jayrah/ui/tui/actions.py:70:                    cast(Any, self).selected_issue,
+jayrah/ui/tui/actions.py:76:            cast(Any, self).notify(f"Error loading issue data: {exc}", severity="error")
+jayrah/ui/tui/actions.py:79:        """Open modal to edit components for the selected issue."""
+jayrah/ui/tui/actions.py:80:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:81:            cast(Any, self).notify("No issue selected", severity="warning")
+jayrah/ui/tui/actions.py:84:        # Get the current issue data to retrieve existing components
+jayrah/ui/tui/actions.py:86:            issue_data = cast(Any, self).jayrah_obj.jira.get_issue(
+jayrah/ui/tui/actions.py:87:                cast(Any, self).selected_issue
+jayrah/ui/tui/actions.py:89:            current_components_data = issue_data.get("fields", {}).get("components", [])
+jayrah/ui/tui/actions.py:98:                    cast(Any, self).selected_issue,
+jayrah/ui/tui/actions.py:104:            cast(Any, self).notify(f"Error loading issue data: {exc}", severity="error")
+jayrah/ui/tui/actions.py:106:    def action_transition_issue(self) -> None:  # noqa: D401
+jayrah/ui/tui/actions.py:107:        """Open modal to transition the selected issue to a new status."""
+jayrah/ui/tui/actions.py:108:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:109:            cast(Any, self).notify("No issue selected", severity="warning")
+jayrah/ui/tui/actions.py:117:                    cast(Any, self).selected_issue,
+jayrah/ui/tui/actions.py:126:    def action_edit_issue(self) -> None:  # noqa: D401
+jayrah/ui/tui/actions.py:127:        """Open modal to edit the selected issue (title or description)."""
+jayrah/ui/tui/actions.py:128:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:129:            cast(Any, self).notify("No issue selected", severity="warning")
+jayrah/ui/tui/actions.py:137:                    cast(Any, self).selected_issue,
+jayrah/ui/tui/actions.py:147:        """Open modal to view comments for the selected issue."""
+jayrah/ui/tui/actions.py:148:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:149:            cast(Any, self).notify("No issue selected", severity="warning")
+jayrah/ui/tui/actions.py:157:                    cast(Any, self).selected_issue,
+jayrah/ui/tui/actions.py:165:        """Open a simple filter dialog to search across all visible fields."""
+jayrah/ui/tui/actions.py:180:        """Move cursor down in the issues table."""
+jayrah/ui/tui/actions.py:181:        table = cast(Any, self).query_one("#issues-table")
+jayrah/ui/tui/actions.py:185:        """Move cursor up in the issues table."""
+jayrah/ui/tui/actions.py:186:        table = cast(Any, self).query_one("#issues-table")
+jayrah/ui/tui/actions.py:190:        """Scroll down the issue detail panel content."""
+jayrah/ui/tui/actions.py:196:        """Scroll up the issue detail panel content."""
+jayrah/ui/tui/actions.py:202:        """Scroll down one page in the issue detail panel content."""
+jayrah/ui/tui/actions.py:208:        """Scroll up one page in the issue detail panel content."""
+jayrah/ui/tui/actions.py:213:    def action_open_issue(self) -> None:  # noqa: D401
+jayrah/ui/tui/actions.py:214:        """Open the selected issue in the browser."""
+jayrah/ui/tui/actions.py:215:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:216:            cast(Any, self).notify("No issue selected", severity="error")
+jayrah/ui/tui/actions.py:220:                cast(Any, self).selected_issue, cast(Any, self).config
+jayrah/ui/tui/actions.py:223:                f"Opening {cast(Any, self).selected_issue} in browser"
+jayrah/ui/tui/actions.py:226:            cast(Any, self).notify(f"Error opening issue: {exc}", severity="error")
+jayrah/ui/tui/actions.py:229:        """Copy the URL of the selected issue to clipboard."""
+jayrah/ui/tui/actions.py:230:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:231:            cast(Any, self).notify("No issue selected", severity="error")
+jayrah/ui/tui/actions.py:238:            server = cast(Any, self).config.get("jira_server")
+jayrah/ui/tui/actions.py:244:            url = utils.make_full_url(cast(Any, self).selected_issue, server)
+jayrah/ui/tui/actions.py:258:                    f"✅ Copied URL to clipboard: {cast(Any, self).selected_issue}"
+jayrah/ui/tui/actions.py:270:        """Confirm the currently highlighted issue when auto choose is enabled."""
+jayrah/ui/tui/actions.py:272:            self.action_open_issue()
+jayrah/ui/tui/actions.py:275:        if not cast(Any, self).selected_issue:
+jayrah/ui/tui/actions.py:276:            cast(Any, self).notify("No issue selected", severity="warning")
+jayrah/ui/tui/actions.py:279:        cast(Any, self).exit(cast(Any, self).selected_issue)
+jayrah/ui/tui/actions.py:283:        cast(Any, self).exit()  # *app.selected_issue* persists after exit
+jayrah/ui/tui/actions.py:299:        """Change to a different board and reload issues."""
+jayrah/ui/tui/actions.py:310:        """Worker method to change board and reload issues."""
+jayrah/ui/tui/actions.py:315:            # Get the new board's JQL and order_by
+jayrah/ui/tui/actions.py:316:            jql, order_by = boards.check(board_name, cast(Any, self).config)
+jayrah/ui/tui/actions.py:317:            if not jql or not order_by:
+jayrah/ui/tui/actions.py:320:                        f"Error: Invalid board or missing JQL: {board_name}",
+jayrah/ui/tui/actions.py:328:            cast(Any, self).jql = jql
+jayrah/ui/tui/actions.py:331:            # Clear cache and fetch new issues
+jayrah/ui/tui/actions.py:332:            cast(Any, self).jayrah_obj.jira.cache.clear()
+jayrah/ui/tui/actions.py:333:            new_issues = cast(Any, self).jayrah_obj.issues_client.list_issues(
+jayrah/ui/tui/actions.py:334:                jql, order_by=order_by, use_cache=False
+jayrah/ui/tui/actions.py:339:                lambda: self._update_issues_after_board_change(new_issues, board_name)
+jayrah/ui/tui/actions.py:349:    def _update_issues_after_board_change(
+jayrah/ui/tui/actions.py:350:        self, new_issues: list, board_name: str
+jayrah/ui/tui/actions.py:355:                f"Board changed to {board_name}. New issues: {len(new_issues)}"
+jayrah/ui/tui/actions.py:358:        cast(Any, self).issues = new_issues
+jayrah/ui/tui/actions.py:364:        detail_panel.update_issue(None, cast(Any, self).config)
+jayrah/ui/tui/actions.py:365:        cast(Any, self).selected_issue = None
+jayrah/ui/tui/actions.py:368:            f"✅ Switched to board: {board_name} ({len(new_issues)} issues)"
+jayrah/ui/tui/actions.py:371:    def _reload_issues(self) -> None:
+jayrah/ui/tui/actions.py:372:        """Worker method to reload issues."""
+jayrah/ui/tui/actions.py:374:            # Clear cache and fetch new issues
+jayrah/ui/tui/actions.py:375:            cast(Any, self).jayrah_obj.jira.cache.clear()
+jayrah/ui/tui/actions.py:376:            new_issues = cast(Any, self).jayrah_obj.issues_client.list_issues(
+jayrah/ui/tui/actions.py:377:                cast(Any, self).jql, order_by=cast(Any, self).order_by, use_cache=False
+jayrah/ui/tui/actions.py:382:                lambda: self._update_issues_after_reload(new_issues)
+jayrah/ui/tui/actions.py:388:                    f"Error reloading issues: {err}", severity="error"
+jayrah/ui/tui/actions.py:392:    def _update_issues_after_reload(self, new_issues: list) -> None:
+jayrah/ui/tui/actions.py:393:        """Update the UI after reloading issues."""
+jayrah/ui/tui/actions.py:395:            cast(Any, self).log(f"Reloaded Issues are {new_issues}")
+jayrah/ui/tui/actions.py:397:        cast(Any, self).issues = new_issues
+jayrah/ui/tui/actions.py:399:            "", msg="Reloading issues and clearing cache"
+jayrah/ui/tui/actions.py:404:        detail_panel.update_issue(
+jayrah/ui/tui/app.py:1:"""Main issue browser application combining all components."""
+jayrah/ui/tui/app.py:11:from .helpers import filter_issues_by_text, get_row_data_for_issue
+jayrah/ui/tui/app.py:16:    """A **Textual** app for browsing Jira issues via *jayrah*."""
+jayrah/ui/tui/app.py:33:    #issues-table {
+jayrah/ui/tui/app.py:37:    #issues-table .datatable--header-cell-Type    { width: 2;  }
+jayrah/ui/tui/app.py:38:    #issues-table .datatable--header-cell-Ticket     { width: 12; }
+jayrah/ui/tui/app.py:39:    #issues-table .datatable--header-cell-Summary { width: 40%;}
+jayrah/ui/tui/app.py:40:    #issues-table .datatable--header-cell-Assignee{ width: 15; }
+jayrah/ui/tui/app.py:41:    #issues-table .datatable--header-cell-Reporter{ width: 15; }
+jayrah/ui/tui/app.py:42:    #issues-table .datatable--header-cell-Created { width: 10; }
+jayrah/ui/tui/app.py:43:    #issues-table .datatable--header-cell-Updated { width: 10; }
+jayrah/ui/tui/app.py:44:    #issues-table .datatable--header-cell-Status  { width: 10; }
+jayrah/ui/tui/app.py:46:    #issues-table {
+jayrah/ui/tui/app.py:68:        Binding("o", "open_issue", "Open"),
+jayrah/ui/tui/app.py:75:        Binding("t", "transition_issue", "Transition", show=False),
+jayrah/ui/tui/app.py:76:        Binding("e", "edit_issue", "Edit", show=False),
+jayrah/ui/tui/app.py:91:        issues: list | None = None,
+jayrah/ui/tui/app.py:94:        jql: str | None = None,
+jayrah/ui/tui/app.py:102:        self.issues = issues or []
+jayrah/ui/tui/app.py:104:        self.selected_issue: str | None = None
+jayrah/ui/tui/app.py:105:        self.jql = jql
+jayrah/ui/tui/app.py:110:            self.jayrah_obj.jira.cache.preload_cache()
+jayrah/ui/tui/app.py:129:        table = DataTable(id="issues-table")
+jayrah/ui/tui/app.py:144:        for issue in self.issues:
+jayrah/ui/tui/app.py:145:            row_data = get_row_data_for_issue(issue)
+jayrah/ui/tui/app.py:156:        if self.auto_choose and self.issues:
+jayrah/ui/tui/app.py:157:            table = self.query_one("#issues-table", DataTable)
+jayrah/ui/tui/app.py:164:            first_issue = self.issues[0]
+jayrah/ui/tui/app.py:165:            issue_key = (
+jayrah/ui/tui/app.py:166:                first_issue.get("key") if isinstance(first_issue, dict) else None
+jayrah/ui/tui/app.py:168:            if issue_key:
+jayrah/ui/tui/app.py:169:                self.selected_issue = issue_key
+jayrah/ui/tui/app.py:171:                detail_panel.update_issue(issue_key, self.config)
+jayrah/ui/tui/app.py:177:        if not self.issues:
+jayrah/ui/tui/app.py:180:        table = self.query_one("#issues-table", DataTable)
+jayrah/ui/tui/app.py:186:            issue_key = str(row[1]) if row and len(row) > 1 else None
+jayrah/ui/tui/app.py:188:            if issue_key and issue_key != self.selected_issue:
+jayrah/ui/tui/app.py:189:                self.log(f"Row highlighted → {issue_key}")
+jayrah/ui/tui/app.py:190:                self.selected_issue = issue_key
+jayrah/ui/tui/app.py:191:                self.query_one(IssueDetailPanel).update_issue(issue_key, self.config)
+jayrah/ui/tui/app.py:198:        if self.auto_choose and self.selected_issue:
+jayrah/ui/tui/app.py:199:            self.exit(self.selected_issue)
+jayrah/ui/tui/app.py:202:        self, text: str = "", msg: str = "Showing all issues"
+jayrah/ui/tui/app.py:204:        """Apply a fuzzy filter to all visible fields in the issues table."""
+jayrah/ui/tui/app.py:205:        table = self.query_one("#issues-table", DataTable)
+jayrah/ui/tui/app.py:228:        # Filter issues using helper function
+jayrah/ui/tui/app.py:229:        filtered_issues = filter_issues_by_text(self.issues, text)
+jayrah/ui/tui/app.py:232:        if filtered_issues:
+jayrah/ui/tui/app.py:233:            txt_message = f"Found {len(filtered_issues)} issues"
+jayrah/ui/tui/app.py:238:            self.notify(f"No issues match '{text}'", severity="warning")
+jayrah/ui/tui/app.py:240:        # Create a set of filtered issue keys for quick lookup
+jayrah/ui/tui/app.py:241:        filtered_keys = {issue["key"] for issue in filtered_issues}
+jayrah/ui/tui/app.py:248:        # Add or update rows for filtered issues
+jayrah/ui/tui/app.py:249:        for issue in filtered_issues:
+jayrah/ui/tui/app.py:250:            key = issue["key"]
+jayrah/ui/tui/app.py:251:            row_data = get_row_data_for_issue(issue)
+jayrah/ui/tui/app.py:263:        # Clear the selected issue if it doesn't exist in the filtered results
+jayrah/ui/tui/app.py:264:        if self.selected_issue and self.selected_issue not in filtered_keys:
+jayrah/ui/tui/app.py:265:            self.selected_issue = None
+jayrah/ui/tui/app.py:267:            detail_panel.update_issue(None, self.config)
+jayrah/ui/tui/app.py:272:    issues: list,
+jayrah/ui/tui/app.py:275:    jql: str,
+jayrah/ui/tui/app.py:281:        issues, config, command, jql, order_by, auto_choose=auto_choose
+jayrah/ui/tui/app.py:285:    # Don't fallback to selected_issue for q/Ctrl+C
+jayrah/ui/tui/app.py:288:    return result if result else app.selected_issue

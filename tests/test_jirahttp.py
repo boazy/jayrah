@@ -51,11 +51,11 @@ def test_search_issues(sample_config, mock_urlopen, mock_jira_client):
             max_results=10,
         )
 
-        # Check _request was called with expected arguments
+        # Check _request was called with expected arguments (search/jql is tried first)
         mock_request.assert_called_once_with(
             "GET",
-            "search",
-            params={"jql": "project = TEST", "startAt": 0, "maxResults": 10},
+            "search/jql",
+            params={"jql": "project = TEST", "maxResults": 10},
             label="✨ Fetching Jira issues",
             use_cache=True,
         )
@@ -188,15 +188,17 @@ def test_get_components(sample_config, mock_urlopen, mock_jira_client):
 
         result = client.get_components()
 
-        # Check _request was called with expected arguments
+        # Check _request was called with expected arguments (search/jql is tried first)
         mock_request.assert_called_once_with(
             "GET",
-            "search",
+            "search/jql",
             params={
                 "jql": "project = TEST",
                 "maxResults": 100,
                 "fields": "components",
             },
+            label="✨ Fetching Jira issues",
+            use_cache=True,
         )
 
         # Check that unique components are returned sorted

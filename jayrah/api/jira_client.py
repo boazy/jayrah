@@ -64,12 +64,24 @@ class JiraHTTP:
             quiet=config.get("quiet", False),
         )
 
+        self._count_jql_supported: Optional[bool] = None
+        self.current_user: Optional[Dict[str, Any]] = None
+
         if self.verbose:
             log(
                 f"Initialized JiraClient: server={server}, api_version={api_version}, "
                 f"auth_method={auth_method}, project={config.get('jira_component')}, "
                 f"no_cache={config.get('no_cache')}, insecure={config.get('insecure', False)}"
             )
+
+        if self.verbose or config.get("verify_auth"):
+            self.current_user = self.get_myself()
+            if self.verbose and self.current_user:
+                display_name = self.current_user.get("displayName")
+                email = self.current_user.get("emailAddress")
+                account_id = self.current_user.get("accountId")
+                identity = display_name or email or account_id or "Unknown"
+                log(f"Authenticated Jira user: {identity}")
 
     @property
     def cache(self):
@@ -105,17 +117,22 @@ class JiraHTTP:
         start_at: int = 0,
         max_results: int = 50,
         fields: Optional[List[str]] = None,
+        page_token: Optional[str] = None,
         use_cache: bool = True,
     ) -> Dict[str, Any]:
         """Search for issues using JQL."""
-        params = {"jql": jql, "startAt": start_at, "maxResults": max_results}
+        search_params = {"jql": jql, "maxResults": max_results}
+        if start_at:
+            search_params["startAt"] = start_at
         if fields:
-            params["fields"] = ",".join(fields)
+            search_params["fields"] = ",".join(fields)
+        if page_token:
+            search_params["nextPageToken"] = page_token
 
         if self.verbose:
             log(
                 f"Searching issues with JQL: '{click.style(jql, fg='cyan')}' "
-                f"Params: '{click.style(params.get('fields', ''), fg='cyan')}'",
+                f"Params: '{click.style(search_params.get('fields', ''), fg='cyan')}'",
             )
             log(f"Start at: {start_at}, Max results: {max_results}")
 
@@ -123,13 +140,88 @@ class JiraHTTP:
         if start_at != 0:
             label += f" from {start_at} to {start_at + max_results}"
 
-        return self._request(
-            "GET", "search", params=params, label=label, use_cache=use_cache
+        # IMPORTANT: Atlassian Cloud has removed the legacy /search endpoint.
+        # Do NOT add fallbacks to removed APIs; surface the error instead.
+        endpoint = "search/jql"
+        response = self._request(
+            "GET",
+            endpoint,
+            params=search_params,
+            label=label,
+            use_cache=use_cache,
         )
+
+        # Normalize response: search/jql returns "values" but legacy code expects "issues"
+        if "values" in response and "issues" not in response:
+            response["issues"] = response.pop("values")
+
+        if (
+            use_cache
+            and self.request_handler.last_cache_hit
+            and not response.get("issues")
+        ):
+            if self.verbose:
+                log("Cached search returned no issues; retrying without cache")
+            response = self._request(
+                "GET",
+                endpoint,
+                params=search_params,
+                label=label,
+                use_cache=False,
+            )
+            if "values" in response and "issues" not in response:
+                response["issues"] = response.pop("values")
+
+        return response
+
+    def count_issues(self, jql: str) -> Optional[int]:
+        """Return an approximate count of issues matching the JQL query."""
+        if self._count_jql_supported is not False:
+            try:
+                response = self._request(
+                    "POST",
+                    "search/approximate-count",
+                    jeez={"jql": jql},
+                    label="Counting Jira issues",
+                    use_cache=False,
+                )
+                count = response.get("count") if isinstance(response, dict) else None
+                if isinstance(count, int):
+                    self._count_jql_supported = True
+                    return count
+            except exceptions.JiraNotFoundError:
+                self._count_jql_supported = False
+            except exceptions.JiraAPIError as exc:
+                if exc.status_code in (404, 405):
+                    self._count_jql_supported = False
+                else:
+                    raise
+
+        if self._count_jql_supported is False:
+            try:
+                result = self.search_issues(
+                    jql, start_at=0, max_results=0, fields=["key"], use_cache=False
+                )
+                total = result.get("total") if isinstance(result, dict) else None
+                if isinstance(total, int):
+                    return total
+            except Exception:
+                return None
+
+        return None
 
     def get_fields(self) -> Any:
         """Get all available fields."""
         return self._request("GET", "field", label="Fetching fields")
+
+    def get_myself(self) -> Dict[str, Any]:
+        """Fetch the currently authenticated user."""
+        return self._request(
+            "GET",
+            "myself",
+            label="Verifying Jira authentication",
+            use_cache=False,
+        )
 
     def create_issue(
         self,
@@ -550,10 +642,10 @@ class JiraHTTP:
     def get_labels(self, max_results: int = 100) -> List[str]:
         """Get all available labels."""
         jql = f"project = {self.config.get('jira_project')}"
-        response = self._request(
-            "GET",
-            "search",
-            params={"jql": jql, "maxResults": max_results, "fields": "labels"},
+        response = self.search_issues(
+            jql,
+            max_results=max_results,
+            fields=["labels"],
         )
 
         # Extract unique labels from all issues
@@ -566,10 +658,10 @@ class JiraHTTP:
     def get_components(self, max_results: int = 100) -> List[str]:
         """Get all available components."""
         jql = f"project = {self.config.get('jira_project')}"
-        response = self._request(
-            "GET",
-            "search",
-            params={"jql": jql, "maxResults": max_results, "fields": "components"},
+        response = self.search_issues(
+            jql,
+            max_results=max_results,
+            fields=["components"],
         )
 
         # Extract unique components from all issues

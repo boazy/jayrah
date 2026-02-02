@@ -40,10 +40,13 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         config_modified = True
 
     if not config["auth_method"]:
+        default_auth = "bearer"
+        if config.get("api_version") == "3":
+            default_auth = "basic"
         config["auth_method"] = Prompt.ask(
             "Select authentication method",
             choices=["basic", "bearer"],
-            default="bearer",
+            default=default_auth,
         )
         config_modified = True
 

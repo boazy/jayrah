@@ -840,7 +840,25 @@ async function fetchIssues(q = "") {
   try {
     const url = q ? `/api/issues?q=${encodeURIComponent(q)}` : "/api/issues";
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err && err.detail) {
+          if (typeof err.detail === "string") {
+            detail = err.detail;
+          } else if (err.detail.message) {
+            detail = err.detail.message;
+          } else {
+            detail = JSON.stringify(err.detail);
+          }
+        }
+      } catch (_) {
+        // Ignore parse errors; fallback to status
+      }
+      showNotification(`Failed to load issues: ${detail}`, "error");
+      throw new Error(detail);
+    }
     return await res.json();
   } catch (error) {
     console.error("Error fetching issues:", error);
@@ -891,6 +909,7 @@ async function refreshIssues() {
     console.log("Issues refreshed successfully");
   } catch (error) {
     console.error("Error refreshing issues:", error);
+    showNotification(`Error refreshing issues: ${error.message}`, "error");
   }
 }
 

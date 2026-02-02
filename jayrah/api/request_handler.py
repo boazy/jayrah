@@ -26,6 +26,9 @@ class JiraRequestHandler:
         verbose: bool = False,
         insecure: bool = False,
         quiet: bool = False,
+        retry_attempts: int = 2,
+        retry_backoff: float = 0.5,
+        retry_statuses: tuple[int, ...] = (502, 503, 504),
     ):
         self.base_url = base_url
         self.headers = headers
@@ -33,6 +36,11 @@ class JiraRequestHandler:
         self.verbose = verbose
         self.insecure = insecure
         self.quiet = quiet
+        self.retry_attempts = max(retry_attempts, 0)
+        self.retry_backoff = max(retry_backoff, 0)
+        self.retry_statuses = retry_statuses
+        self.last_error: Optional[Dict[str, Any]] = None
+        self.last_cache_hit = False
 
         if self.insecure:
             self._setup_insecure_ssl()
@@ -97,6 +105,7 @@ class JiraRequestHandler:
         """Make HTTP request to Jira API."""
         endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
+        self.last_error = None
 
         if self.verbose:
             log(f"API call Requested: {method} {url}")
@@ -115,79 +124,104 @@ class JiraRequestHandler:
             if cached_response:
                 if self.verbose:
                     log("Using cached response from SQLite database")
+                self.last_cache_hit = True
                 return cached_response
 
             if self.verbose:
                 log(f"No cache found for: {url}")
 
-        try:
-            if self.verbose:
-                log(f"Sending request to {url}...")
-                curl_cmd = self._get_curl_command(
-                    method, url, self.headers, params, json_data
-                )
-                log(f"curl command :\n{curl_cmd}")
-
-            # Construct the full URL with parameters
-            if params:
-                query_string = urlencode(params)
-                full_url = f"{url}?{query_string}"
-            else:
-                full_url = url
-
-            # Prepare the request
-            request = urllib.request.Request(full_url, method=method)
-
-            # Add headers
-            for key, value in self.headers.items():
-                request.add_header(key, value)
-
-            # Add JSON data if provided
-            data = None
-            if json_data:
-                data = json.dumps(json_data).encode("utf-8")
-
-            # Send the request
-            response_data = self._send_request(request, data, label)
-
-            # Cache the response for GET requests
-            if method.upper() == "GET":
+        attempt = 0
+        while True:
+            try:
                 if self.verbose:
-                    log(f"Caching response for: {url}")
-                self.cache.set(url, response_data, params, json_data)
+                    log(f"Sending request to {url}...")
+                    curl_cmd = self._get_curl_command(
+                        method, url, self.headers, params, json_data
+                    )
+                    log(f"curl command :\n{curl_cmd}")
 
-            return response_data
+                # Construct the full URL with parameters
+                if params:
+                    query_string = urlencode(params)
+                    full_url = f"{url}?{query_string}"
+                else:
+                    full_url = url
 
-        except urllib.error.HTTPError as e:
-            response_body = e.read().decode("utf-8")
-            status_code = e.code
+                # Prepare the request
+                request = urllib.request.Request(full_url, method=method)
 
-            if self.verbose:
-                log(f"HTTP error occurred: {status_code} {e.reason}")
-                log(f"Response: {response_body}")
+                # Add headers
+                for key, value in self.headers.items():
+                    request.add_header(key, value)
 
-            # Add delay before potentially retrying to avoid rate limiting
-            time.sleep(0.5)
+                # Add JSON data if provided
+                data = None
+                if json_data:
+                    data = json.dumps(json_data).encode("utf-8")
 
-            # Raise specific exceptions based on status code
-            if status_code == 429:
-                raise exceptions.JiraRateLimitError(url, response_body)
-            if status_code == 404:
-                raise exceptions.JiraNotFoundError(url, response_body)
-            if status_code == 401:
-                raise exceptions.JiraAuthenticationError(url, response_body)
-            if status_code == 403:
-                raise exceptions.JiraAuthorizationError(url, response_body)
+                # Send the request
+                self.last_cache_hit = False
+                response_data = self._send_request(request, data, label)
 
-            raise exceptions.JiraAPIError(
-                f"HTTP {status_code}: {e.reason}",
-                url,
-                status_code,
-                response_body,
-            )
-        except urllib.error.URLError as e:
-            log(f"URL error occurred: {e}")
-            raise click.ClickException(f"URL error: {e}") from e
+                # Cache the response for GET requests
+                if method.upper() == "GET":
+                    if self.verbose:
+                        log(f"Caching response for: {url}")
+                    self.cache.set(url, response_data, params, json_data)
+
+                self.last_error = None
+                return response_data
+            except urllib.error.HTTPError as e:
+                response_body = e.read().decode("utf-8")
+                status_code = e.code
+                self.last_error = {
+                    "status_code": status_code,
+                    "url": url,
+                    "reason": str(e.reason),
+                    "response": response_body,
+                }
+
+                if self.verbose:
+                    log(f"HTTP error occurred: {status_code} {e.reason}")
+                    log(f"Response: {response_body}")
+
+                if (
+                    method.upper() == "GET"
+                    and status_code in self.retry_statuses
+                    and attempt < self.retry_attempts
+                ):
+                    sleep_for = self.retry_backoff * (2**attempt)
+                    if self.verbose:
+                        log(
+                            f"Retrying after HTTP {status_code} (attempt {attempt + 1}/{self.retry_attempts})"
+                        )
+                    time.sleep(sleep_for)
+                    attempt += 1
+                    continue
+
+                # Add delay before potentially retrying to avoid rate limiting
+                time.sleep(0.5)
+
+                # Raise specific exceptions based on status code
+                if status_code == 429:
+                    raise exceptions.JiraRateLimitError(url, response_body)
+                if status_code == 404:
+                    raise exceptions.JiraNotFoundError(url, response_body)
+                if status_code == 401:
+                    raise exceptions.JiraAuthenticationError(url, response_body)
+                if status_code == 403:
+                    raise exceptions.JiraAuthorizationError(url, response_body)
+
+                raise exceptions.JiraAPIError(
+                    f"HTTP {status_code}: {e.reason}",
+                    url,
+                    status_code,
+                    response_body,
+                )
+            except urllib.error.URLError as e:
+                log(f"URL error occurred: {e}")
+                self.last_error = {"url": url, "reason": str(e)}
+                raise click.ClickException(f"URL error: {e}") from e
 
     def _send_request(
         self,

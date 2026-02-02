@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from jayrah import config as jayrah_config
+from jayrah.api import exceptions as jira_exceptions
 from jayrah.config import defaults
 from jayrah.ui.shared_helpers import filter_issues_by_text, get_row_data_for_issue
 from jayrah.ui.tui.base import JayrahAppMixin
@@ -29,6 +30,28 @@ if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
+def _truncate(value: str, limit: int = 400) -> str:
+    if not value:
+        return ""
+    return value if len(value) <= limit else f"{value[:limit]}..."
+
+
+def _format_error(err: Exception, state: "WebAppState") -> dict:
+    if isinstance(err, jira_exceptions.JiraAPIError):
+        return {
+            "message": str(err).splitlines()[0],
+            "status_code": err.status_code,
+            "endpoint": err.endpoint,
+            "response": _truncate(err.response_body.strip()),
+        }
+    if state.jayrah_obj.jira.request_handler.last_error:
+        payload = dict(state.jayrah_obj.jira.request_handler.last_error)
+        if payload.get("response"):
+            payload["response"] = _truncate(str(payload["response"]).strip())
+        return payload
+    return {"message": str(err)}
+
+
 class WebAppState(JayrahAppMixin):
     def __init__(self, user_config=None):
         # Load configuration the same way as CLI
@@ -40,6 +63,7 @@ class WebAppState(JayrahAppMixin):
             wconfig = user_config
 
         JayrahAppMixin.__init__(self, wconfig)
+        self.last_error: Optional[dict] = None
         try:
             # Use the default board's JQL if available, otherwise get recent issues
             if wconfig.get("boards") and len(wconfig["boards"]) > 0:
@@ -51,10 +75,12 @@ class WebAppState(JayrahAppMixin):
 
             result = self.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
             self.issues = result.get("issues", []) if result else []
+            self.last_error = None
             print(f"Loaded {len(self.issues)} issues from Jira using JQL: {jql}")
         except Exception as e:
             print(f"Error loading issues: {e}")
             self.issues = []
+            self.last_error = _format_error(e, self)
 
 
 def get_app_state() -> WebAppState:
@@ -75,9 +101,9 @@ def get_issues(
     q: Optional[str] = Query(None), state: WebAppState = Depends(get_app_state)
 ):
     if not state.issues:
-        raise HTTPException(
-            status_code=503, detail="No issues available - check Jira configuration"
-        )
+        if state.last_error:
+            raise HTTPException(status_code=502, detail=state.last_error)
+        return []
     issues = state.issues
     if q:
         issues = filter_issues_by_text(issues, q)
@@ -87,7 +113,9 @@ def get_issues(
 @app.get("/api/issue/{key}")
 def get_issue_detail(key: str, state: WebAppState = Depends(get_app_state)):
     if not state.issues:
-        raise HTTPException(status_code=503, detail="No issues available")
+        if state.last_error:
+            raise HTTPException(status_code=502, detail=state.last_error)
+        return {"error": "No issues loaded"}
     for issue in state.issues:
         if issue["key"] == key:
             # Include custom fields config for the frontend
@@ -162,6 +190,7 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
 
         # Update the state with new issues
         state.issues = new_issues
+        state.last_error = None
 
         print(
             f"Switched to board '{board_name}' with {len(new_issues)} issues using JQL: {jql}"
@@ -175,6 +204,7 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
         }
     except Exception as e:
         print(f"Error switching board: {e}")
+        state.last_error = _format_error(e, state)
         raise HTTPException(
             status_code=500, detail=f"Error switching board: {str(e)}"
         ) from e
@@ -196,11 +226,14 @@ def refresh_issues(state: WebAppState = Depends(get_app_state)):
             jql = "updated >= -30d ORDER BY updated DESC"  # Default: issues updated in last 30 days
 
         # Fetch fresh issues from Jira (use_cache=False to bypass cache)
-        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
+        result = state.jayrah_obj.jira.search_issues(
+            jql=jql, max_results=100, use_cache=False
+        )
         new_issues = result.get("issues", []) if result else []
 
         # Update the state with new issues
         state.issues = new_issues
+        state.last_error = None
 
         print(f"Refreshed {len(new_issues)} issues from Jira using JQL: {jql}")
 
@@ -211,6 +244,7 @@ def refresh_issues(state: WebAppState = Depends(get_app_state)):
         }
     except Exception as e:
         print(f"Error refreshing issues: {e}")
+        state.last_error = _format_error(e, state)
         raise HTTPException(
             status_code=500, detail=f"Error refreshing issues: {str(e)}"
         ) from e

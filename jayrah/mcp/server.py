@@ -2,7 +2,7 @@
 """MCP server implementation for Jayrah AI integration."""
 
 import json
-from typing import Dict, List, Sequence, TypeVar, Union
+from typing import Dict, List, Optional, Sequence, TypeVar, Union
 
 import mcp.server.stdio
 from mcp import types
@@ -155,7 +155,7 @@ def _format_issues_summary(
 def _format_search_results(
     jql: str,
     issues: List[Dict],
-    total: int,
+    total: Optional[int],
     limit: int = 10,
     page: int = 1,
     page_size: int = 100,
@@ -163,7 +163,10 @@ def _format_search_results(
 ) -> str:
     """Format search results into a readable summary."""
     # Create the summary heading
-    summary = f"Found {total} issues matching JQL: {jql}\n"
+    if total is not None:
+        summary = f"Found {total} issues matching JQL: {jql}\n"
+    else:
+        summary = f"Found {len(issues)} issues matching JQL: {jql}\n"
     summary += f"Page {page} (showing {len(issues)} issues):\n\n"
 
     # Display issues up to the specified limit
@@ -189,7 +192,14 @@ def _format_search_results(
             f"... and {len(issues) - display_count} more issues on this page.\n\n"
         )
 
-    summary += f"Showing issues {start_at + 1}-{start_at + display_count} of {total} total issues (page {page}).\n"
+    if total is not None:
+        summary += (
+            f"Showing issues {start_at + 1}-{start_at + display_count} of {total} total issues (page {page}).\n"
+        )
+    else:
+        summary += (
+            f"Showing issues {start_at + 1}-{start_at + display_count} (total unknown, page {page}).\n"
+        )
     summary += "Use the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
 
     return summary
@@ -692,24 +702,15 @@ def create_server(context: ServerContext) -> Server:
             jql, order_by=order_by, limit=page_size, all_pages=False, start_at=start_at
         )
 
-        # If we have issues returned, try to get the total count from the metadata
+        # If we have issues returned, try to get an approximate total count
         if issues:
-            # This is a bit of a hack since Jira API doesn't return total with the issues
-            # We need to use search_issues directly to get the total
             try:
-                result = context.boards_obj.jira.search_issues(
-                    jql,
-                    start_at=0,
-                    max_results=1,  # Just need one to get the metadata
-                    fields=["key"],  # Minimal fields to reduce payload
-                )
-                total = result.get("total", 0)
-
-                # Add the total to each issue's metadata (or create metadata if it doesn't exist)
-                for issue in issues:
-                    if "metadata" not in issue:
-                        issue["metadata"] = {}
-                    issue["metadata"]["total"] = total
+                total = context.boards_obj.jira.count_issues(jql)
+                if isinstance(total, int):
+                    for issue in issues:
+                        if "metadata" not in issue:
+                            issue["metadata"] = {}
+                        issue["metadata"]["total"] = total
             except Exception:
                 # If we can't get the total, just continue without it
                 pass
@@ -942,12 +943,14 @@ def create_server(context: ServerContext) -> Server:
 
         try:
             # Execute the search
-            result = context.boards_obj.jira.search_issues(
-                jql, start_at=start_at, max_results=page_size
+            issues = context.boards_obj.issues_client.list_issues(
+                jql,
+                order_by=order_by,
+                limit=page_size,
+                all_pages=False,
+                start_at=start_at,
             )
-
-            issues = result.get("issues", [])
-            total = result.get("total", 0)
+            total = context.boards_obj.jira.count_issues(jql)
 
             # Format the results
             summary_text = _format_search_results(
@@ -1003,23 +1006,34 @@ def create_server(context: ServerContext) -> Server:
             # Fetch all issues matching the JQL (paginate if needed)
             all_issues = []
             start_at = 0
+            page_token = None
             page_size = 100
             total = None
 
             while True:
                 result = context.boards_obj.jira.search_issues(
-                    jql, start_at=start_at, max_results=page_size
+                    jql,
+                    start_at=start_at,
+                    max_results=page_size,
+                    page_token=page_token,
                 )
                 issues = result.get("issues", [])
                 all_issues.extend(issues)
 
-                if total is None:
+                token_pagination = "nextPageToken" in result or "isLast" in result
+
+                if not token_pagination and total is None and "total" in result:
                     total = result.get("total", 0)
 
-                if len(all_issues) >= total:
-                    break
+                if not token_pagination and total is not None:
+                    if len(all_issues) >= total:
+                        break
+                    start_at += page_size
+                    continue
 
-                start_at += page_size
+                page_token = result.get("nextPageToken")
+                if result.get("isLast") is True or not page_token:
+                    break
 
             # Find the story points field (it's typically a custom field)
             # Common field names: customfield_10002, customfield_12310243, etc.
